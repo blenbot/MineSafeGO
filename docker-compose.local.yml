@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: minesafe_postgres_local
+    environment:
+      POSTGRES_USER: endkot
+      POSTGRES_PASSWORD: endkot
+      POSTGRES_DB: toursafe
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U endkot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: minesafe_backend_local
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: endkot
+      DB_PASSWORD: endkot
+      DB_NAME: toursafe
+      DB_SSLMODE: disable
+      PORT: 8080
+      JWT_SECRET: XRcOa/0nSbxh6nkjgvf6eY3poqQSK8QGe/Xw5FRq4So=
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:8081
+      LOCATIONIQ_API_KEY: ${LOCATIONIQ_API_KEY:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
