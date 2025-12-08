@@ -85,6 +85,8 @@ func runMigrations() error {
 			mining_site VARCHAR(255),
 			location VARCHAR(255),
 			supervisor_id VARCHAR(255),
+			profile_picture_url TEXT,
+			tags JSONB DEFAULT '[]',
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -96,10 +98,51 @@ func runMigrations() error {
 			duration INTEGER,
 			category VARCHAR(100),
 			thumbnail TEXT,
+			tags JSONB DEFAULT '[]',
+			likes_count INTEGER DEFAULT 0,
+			dislikes_count INTEGER DEFAULT 0,
 			is_active BOOLEAN DEFAULT true,
 			created_by VARCHAR(255) REFERENCES users(user_id),
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// Video likes/dislikes tracking
+		`CREATE TABLE IF NOT EXISTS video_reactions (
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) REFERENCES users(user_id) ON DELETE CASCADE,
+			video_id INTEGER REFERENCES video_modules(id) ON DELETE CASCADE,
+			reaction_type VARCHAR(10) NOT NULL CHECK (reaction_type IN ('like', 'dislike')),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user_id, video_id)
+		)`,
+		// Quizzes table (linked to video modules by title or video_id)
+		`CREATE TABLE IF NOT EXISTS quizzes (
+			id SERIAL PRIMARY KEY,
+			video_id INTEGER REFERENCES video_modules(id) ON DELETE CASCADE,
+			title VARCHAR(255) NOT NULL,
+			tags JSONB DEFAULT '[]',
+			created_by VARCHAR(255) REFERENCES users(user_id),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// Quiz questions (separate from video questions for more flexibility)
+		`CREATE TABLE IF NOT EXISTS quiz_questions (
+			id SERIAL PRIMARY KEY,
+			quiz_id INTEGER REFERENCES quizzes(id) ON DELETE CASCADE,
+			question TEXT NOT NULL,
+			options JSONB NOT NULL,
+			correct_answer INTEGER NOT NULL,
+			tags JSONB DEFAULT '[]',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// Quiz completions
+		`CREATE TABLE IF NOT EXISTS quiz_completions (
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) REFERENCES users(user_id) ON DELETE CASCADE,
+			quiz_id INTEGER REFERENCES quizzes(id) ON DELETE CASCADE,
+			score INTEGER NOT NULL,
+			total_questions INTEGER NOT NULL,
+			completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS star_videos (
 			id SERIAL PRIMARY KEY,
@@ -148,6 +191,10 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_emergencies_status ON emergencies(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_module_completions_miner ON module_completions(miner_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_star_videos_active ON star_videos(is_active, set_date)`,
+		`CREATE INDEX IF NOT EXISTS idx_video_reactions_user ON video_reactions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_video_reactions_video ON video_reactions(video_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_quizzes_video ON quizzes(video_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_quiz_completions_user ON quiz_completions(user_id)`,
 		// Pre-Start Checklist table
 		`CREATE TABLE IF NOT EXISTS pre_start_checklist (
 			id SERIAL PRIMARY KEY,
@@ -194,6 +241,15 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_ppe_checklist_supervisor ON ppe_checklist(supervisor_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_pre_start_completions_user ON pre_start_checklist_completions(user_id, date)`,
 		`CREATE INDEX IF NOT EXISTS idx_ppe_completions_user ON ppe_checklist_completions(user_id, date)`,
+		// Add columns if they don't exist (for existing databases)
+		`DO $$ BEGIN
+			ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+			ALTER TABLE users ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]';
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]';
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0;
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS dislikes_count INTEGER DEFAULT 0;
+		EXCEPTION WHEN OTHERS THEN NULL;
+		END $$`,
 	}
 
 	for _, migration := range migrations {

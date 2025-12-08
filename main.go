@@ -34,6 +34,9 @@ func main() {
 	// Create router
 	router := mux.NewRouter()
 
+	// Serve uploaded files (videos, profile pictures)
+	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+
 	// Public routes
 	router.HandleFunc("/api/health", healthCheck).Methods("GET")
 	router.HandleFunc("/api/auth/signup", handlers.SupervisorSignup).Methods("POST")
@@ -43,6 +46,38 @@ func main() {
 	// Protected routes
 	api := router.PathPrefix("/api").Subrouter()
 	api.Use(middleware.AuthMiddleware)
+
+	// ==================== VIDEO FEED & RECOMMENDATIONS ====================
+	// GET /api/videos/feed?page=1&limit=10 - Paginated video feed (TikTok-style)
+	api.HandleFunc("/videos/feed", handlers.GetVideoFeed).Methods("GET")
+	// GET /api/videos/recommended?tags=PPE,safety - Tag-based recommendations
+	api.HandleFunc("/videos/recommended", handlers.GetRecommendedVideos).Methods("GET")
+	// POST /api/videos/{id}/like - Like a video
+	api.HandleFunc("/videos/{id}/like", handlers.LikeVideo).Methods("POST")
+	// POST /api/videos/{id}/dislike - Dislike a video
+	api.HandleFunc("/videos/{id}/dislike", handlers.DislikeVideo).Methods("POST")
+	// POST /api/videos/upload - Upload video with optional quiz (multipart)
+	api.HandleFunc("/videos/upload", handlers.UploadVideo).Methods("POST")
+
+	// ==================== TRAINING & QUIZ ====================
+	// GET /api/training/quiz?title=Safety%20Helmet%20Usage - Get quiz by video title
+	api.HandleFunc("/training/quiz", handlers.GetQuizByTitle).Methods("GET")
+	// GET /api/training/quizzes - Get list of all quizzes
+	api.HandleFunc("/training/quizzes", handlers.GetQuizList).Methods("GET")
+
+	// ==================== USER TAGS ====================
+	// GET /api/user/tags - Get user's interest tags
+	api.HandleFunc("/user/tags", handlers.GetUserTags).Methods("GET")
+	// PUT /api/user/tags - Update user's interest tags
+	api.HandleFunc("/user/tags", handlers.UpdateUserTags).Methods("PUT")
+
+	// ==================== USER PROFILE (App) ====================
+	// GET /api/app/profile - Get full user profile with tags
+	api.HandleFunc("/app/profile", handlers.GetUserProfile).Methods("GET")
+	// PUT /api/app/profile - Update user profile
+	api.HandleFunc("/app/profile", handlers.UpdateUserProfile).Methods("PUT")
+	// POST /api/app/profile/picture - Upload profile picture
+	api.HandleFunc("/app/profile/picture", handlers.UploadProfilePicture).Methods("POST")
 
 	// App routes (User protected - MINER/OPERATOR)
 	api.HandleFunc("/app/quiz-calendar", handlers.GetQuizCalendarAndStreak).Methods("GET")

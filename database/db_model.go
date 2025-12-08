@@ -17,6 +17,20 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
+type Supervisor struct {
+	ID         int64
+	UserID     string
+	Name       string
+	Email      string
+	Phone      *string
+	Password   string
+	Role       string
+	MiningSite *string
+	Location   *string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 type MinerMetrics struct {
 	TotalCompletions int
 	AverageScore     *float64
