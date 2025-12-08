@@ -44,6 +44,13 @@ func main() {
 	api := router.PathPrefix("/api").Subrouter()
 	api.Use(middleware.AuthMiddleware)
 
+	// App routes (User protected - MINER/OPERATOR)
+	api.HandleFunc("/app/quiz-calendar", handlers.GetQuizCalendarAndStreak).Methods("GET")
+	api.HandleFunc("/app/checklists/pre-start", handlers.GetPreStartChecklistForApp).Methods("GET")
+	api.HandleFunc("/app/checklists/pre-start/complete", handlers.UpdatePreStartChecklistForApp).Methods("PUT")
+	api.HandleFunc("/app/checklists/ppe", handlers.GetPPEChecklistForApp).Methods("GET")
+	api.HandleFunc("/app/checklists/ppe/complete", handlers.UpdatePPEChecklistForApp).Methods("PUT")
+
 	// User routes
 	api.HandleFunc("/me", handlers.GetMe).Methods("GET")
 
@@ -75,6 +82,20 @@ func main() {
 	api.HandleFunc("/streak/me", handlers.GetMinerStreak).Methods("GET")
 	api.HandleFunc("/completions/me", handlers.GetMinerCompletions).Methods("GET")
 
+	// Checklist management routes (supervisor only)
+	checklistRoutes := api.PathPrefix("/checklists").Subrouter()
+	checklistRoutes.Use(middleware.SupervisorOnly)
+	// Pre-Start Checklist (Supervisor)
+	checklistRoutes.HandleFunc("/pre-start", handlers.CreatePreStartChecklistItem).Methods("POST")
+	checklistRoutes.HandleFunc("/pre-start", handlers.GetPreStartChecklistItems).Methods("GET")
+	checklistRoutes.HandleFunc("/pre-start/{id}", handlers.DeletePreStartChecklistItem).Methods("DELETE")
+	checklistRoutes.HandleFunc("/pre-start/complete", handlers.UpdatePreStartChecklistCompletion).Methods("PUT")
+	// PPE Checklist (Supervisor)
+	checklistRoutes.HandleFunc("/ppe", handlers.CreatePPEChecklistItem).Methods("POST")
+	checklistRoutes.HandleFunc("/ppe", handlers.GetPPEChecklistItems).Methods("GET")
+	checklistRoutes.HandleFunc("/ppe/{id}", handlers.DeletePPEChecklistItem).Methods("DELETE")
+	checklistRoutes.HandleFunc("/ppe/complete", handlers.UpdatePPEChecklistCompletion).Methods("PUT")
+
 	// Dashboard routes (supervisor only)
 	dashboardRoutes := api.PathPrefix("/dashboard").Subrouter()
 	dashboardRoutes.Use(middleware.SupervisorOnly)
@@ -91,7 +112,6 @@ func main() {
 	//integrations := router.PathPrefix("/application").Subrouter()
 	//integrations.Use(middleware.ServiceAuthMiddleware)
 	//integrations.HandleFunc("/login", handlers.ApplicationHandler).Methods("POST")
-
 
 	// Apply logging middleware
 	router.Use(middleware.LoggingMiddleware)
@@ -148,7 +168,7 @@ func getAllowedOrigins() []string {
 			"*",
 		}
 	}
-	
+
 	// Parse comma-separated origins from environment
 	return parseCommaSeparated(origins)
 }
@@ -157,7 +177,7 @@ func parseCommaSeparated(s string) []string {
 	if s == "" {
 		return []string{}
 	}
-	
+
 	var result []string
 	current := ""
 	for _, char := range s {

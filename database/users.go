@@ -32,7 +32,7 @@ func GetSupervisorNameByUserID(ctx context.Context, supervisorUserID string) (st
 	return name, nil
 }
 
-func GetMinerByEmail(ctx context.Context, email string) (*User, error) {
+func GetUserByEmail(ctx context.Context, email string, role string) (*User, error) {
 	if DB == nil {
 		return nil, errors.New("database not initialized")
 	}
@@ -53,12 +53,12 @@ func GetMinerByEmail(ctx context.Context, email string) (*User, error) {
             updated_at
         FROM users
         WHERE LOWER(email) = LOWER($1)
-          AND role = 'MINER'
+          AND role = $2
         LIMIT 1
     `
 
 	var u User
-	err := DB.QueryRowContext(ctx, query, email).Scan(
+	err := DB.QueryRowContext(ctx, query, email, role).Scan(
 		&u.ID,
 		&u.UserID,
 		&u.Name,

@@ -19,6 +19,12 @@ type User struct {
 
 type MinerMetrics struct {
 	TotalCompletions int
-	AverageScore     *float64 
+	AverageScore     *float64
+	LastCompletedAt  *time.Time
+}
+
+type OperatorMetrics struct {
+	TotalCompletions int
+	AverageScore     *float64
 	LastCompletedAt  *time.Time
 }

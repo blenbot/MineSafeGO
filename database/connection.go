@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -18,7 +19,7 @@ func InitDB() error {
 	}
 
 	var psqlInfo string
-	
+
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL != "" {
 		psqlInfo = databaseURL
@@ -33,7 +34,7 @@ func InitDB() error {
 		password := os.Getenv("DB_PASSWORD")
 		dbname := os.Getenv("DB_NAME")
 		sslmode := os.Getenv("DB_SSLMODE")
-		
+
 		if sslmode == "" {
 			sslmode = "disable"
 		}
@@ -56,7 +57,7 @@ func InitDB() error {
 	}
 
 	log.Println("Successfully connected to database")
-	
+
 	if err := runMigrations(); err != nil {
 		return fmt.Errorf("error running migrations: %w", err)
 	}
@@ -147,6 +148,52 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_emergencies_status ON emergencies(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_module_completions_miner ON module_completions(miner_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_star_videos_active ON star_videos(is_active, set_date)`,
+		// Pre-Start Checklist table
+		`CREATE TABLE IF NOT EXISTS pre_start_checklist (
+			id SERIAL PRIMARY KEY,
+			supervisor_id VARCHAR(255) NOT NULL,
+			title VARCHAR(255) NOT NULL,
+			description TEXT,
+			is_default BOOLEAN DEFAULT false,
+			is_active BOOLEAN DEFAULT true,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// PPE Checklist table
+		`CREATE TABLE IF NOT EXISTS ppe_checklist (
+			id SERIAL PRIMARY KEY,
+			supervisor_id VARCHAR(255) NOT NULL,
+			title VARCHAR(255) NOT NULL,
+			description TEXT,
+			is_default BOOLEAN DEFAULT false,
+			is_active BOOLEAN DEFAULT true,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// Pre-Start Checklist Completions (tracks user tick/no tick)
+		`CREATE TABLE IF NOT EXISTS pre_start_checklist_completions (
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) REFERENCES users(user_id),
+			item_id INTEGER REFERENCES pre_start_checklist(id) ON DELETE CASCADE,
+			is_completed BOOLEAN DEFAULT false,
+			completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			date DATE NOT NULL,
+			UNIQUE(user_id, item_id, date)
+		)`,
+		// PPE Checklist Completions (tracks user tick/no tick)
+		`CREATE TABLE IF NOT EXISTS ppe_checklist_completions (
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) REFERENCES users(user_id),
+			item_id INTEGER REFERENCES ppe_checklist(id) ON DELETE CASCADE,
+			is_completed BOOLEAN DEFAULT false,
+			completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			date DATE NOT NULL,
+			UNIQUE(user_id, item_id, date)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_pre_start_checklist_supervisor ON pre_start_checklist(supervisor_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_ppe_checklist_supervisor ON ppe_checklist(supervisor_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_pre_start_completions_user ON pre_start_checklist_completions(user_id, date)`,
+		`CREATE INDEX IF NOT EXISTS idx_ppe_completions_user ON ppe_checklist_completions(user_id, date)`,
 	}
 
 	for _, migration := range migrations {
@@ -156,12 +203,17 @@ func runMigrations() error {
 	}
 
 	log.Println("Migrations completed successfully")
-	
+
 	// Seed default YouTube video tutorials
 	if err := seedDefaultVideos(); err != nil {
 		log.Printf("Warning: Failed to seed default videos: %v", err)
 	}
-	
+
+	// Seed default checklists
+	if err := seedDefaultChecklists(); err != nil {
+		log.Printf("Warning: Failed to seed default checklists: %v", err)
+	}
+
 	return nil
 }
 
@@ -172,7 +224,7 @@ func seedDefaultVideos() error {
 	if err != nil {
 		return err
 	}
-	
+
 	if count > 0 {
 		log.Println("Videos already seeded, skipping...")
 		return nil
@@ -220,6 +272,72 @@ func seedDefaultVideos() error {
 	}
 
 	log.Printf("Successfully seeded %d default video modules", len(videos))
+	return nil
+}
+
+func seedDefaultChecklists() error {
+	// Seed Pre-Start Checklist defaults
+	var preStartCount int
+	err := DB.QueryRow("SELECT COUNT(*) FROM pre_start_checklist WHERE is_default = true").Scan(&preStartCount)
+	if err != nil {
+		return err
+	}
+
+	if preStartCount == 0 {
+		preStartItems := []struct {
+			title       string
+			description string
+		}{
+			{"Vehicle Inspection", "Check all vehicle fluids, lights, brakes, and tires before operation"},
+			{"Communication Check", "Verify radio and communication equipment is functioning properly"},
+			{"Work Area Assessment", "Inspect work area for hazards, obstacles, and safe access routes"},
+		}
+
+		for _, item := range preStartItems {
+			_, err := DB.Exec(`
+				INSERT INTO pre_start_checklist (supervisor_id, title, description, is_default, is_active, created_at, updated_at)
+				VALUES ('SYSTEM', $1, $2, true, true, NOW(), NOW())
+			`, item.title, item.description)
+			if err != nil {
+				return fmt.Errorf("failed to seed pre-start item '%s': %w", item.title, err)
+			}
+		}
+		log.Printf("Successfully seeded %d default pre-start checklist items", len(preStartItems))
+	} else {
+		log.Println("Pre-start checklist already seeded, skipping...")
+	}
+
+	// Seed PPE Checklist defaults
+	var ppeCount int
+	err = DB.QueryRow("SELECT COUNT(*) FROM ppe_checklist WHERE is_default = true").Scan(&ppeCount)
+	if err != nil {
+		return err
+	}
+
+	if ppeCount == 0 {
+		ppeItems := []struct {
+			title       string
+			description string
+		}{
+			{"Hard Hat", "Ensure hard hat is worn and in good condition with no cracks or damage"},
+			{"Safety Boots", "Steel-toe safety boots must be worn at all times in operational areas"},
+			{"High-Visibility Vest", "High-visibility reflective vest must be worn for visibility"},
+		}
+
+		for _, item := range ppeItems {
+			_, err := DB.Exec(`
+				INSERT INTO ppe_checklist (supervisor_id, title, description, is_default, is_active, created_at, updated_at)
+				VALUES ('SYSTEM', $1, $2, true, true, NOW(), NOW())
+			`, item.title, item.description)
+			if err != nil {
+				return fmt.Errorf("failed to seed PPE item '%s': %w", item.title, err)
+			}
+		}
+		log.Printf("Successfully seeded %d default PPE checklist items", len(ppeItems))
+	} else {
+		log.Println("PPE checklist already seeded, skipping...")
+	}
+
 	return nil
 }
 

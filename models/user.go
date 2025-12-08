@@ -12,6 +12,7 @@ type Role string
 const (
 	RoleSupervisor Role = "SUPERVISOR"
 	RoleMiner      Role = "MINER"
+	RoleOperator   Role = "OPERATOR"
 )
 
 type User struct {
@@ -62,6 +63,8 @@ func NewUser(name, email, phone, password, miningSite, location string, role Rol
 		userID = "SUP-" + uuid.New().String()
 	case RoleMiner:
 		userID = "MIN-" + uuid.New().String()
+	case RoleOperator:
+		userID = "OPE-" + uuid.New().String()
 	default:
 		return nil, errors.New("invalid role")
 	}
