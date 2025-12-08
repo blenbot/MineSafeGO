@@ -24,8 +24,8 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USER: endkot
-      DB_PASSWORD: endkot
+      DB_USER: example
+      DB_PASSWORD: example
       DB_NAME: toursafe
       DB_SSLMODE: disable
       PORT: 8080
