@@ -38,6 +38,7 @@ func main() {
 	router.HandleFunc("/api/health", healthCheck).Methods("GET")
 	router.HandleFunc("/api/auth/signup", handlers.SupervisorSignup).Methods("POST")
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
+	router.HandleFunc("/api/app/miner/login", handlers.MinerAppLogin).Methods("POST")
 
 	// Protected routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -85,6 +86,12 @@ func main() {
 	api.HandleFunc("/emergencies/{id}", handlers.GetEmergency).Methods("GET")
 	api.HandleFunc("/emergencies/{id}/media", handlers.UpdateEmergencyMedia).Methods("PUT")
 	api.HandleFunc("/emergencies/{id}/status", handlers.UpdateEmergencyStatus).Methods("PUT")
+
+	//app routes
+	//integrations := router.PathPrefix("/application").Subrouter()
+	//integrations.Use(middleware.ServiceAuthMiddleware)
+	//integrations.HandleFunc("/login", handlers.ApplicationHandler).Methods("POST")
+
 
 	// Apply logging middleware
 	router.Use(middleware.LoggingMiddleware)
@@ -138,9 +145,7 @@ func getAllowedOrigins() []string {
 	if origins == "" {
 		// Default allowed origins for development
 		return []string{
-			"http://localhost:3000",
-			"http://localhost:5173",
-			"http://localhost:5174",
+			"*"
 		}
 	}
 	
