@@ -154,11 +154,11 @@ func SetStarVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"message":    "Star video set successfully",
-		"video_id":   videoID,
-		"star_id":    starID,
-		"set_date":   today,
-		"is_active":  true,
+		"message":   "Star video set successfully",
+		"video_id":  videoID,
+		"star_id":   starID,
+		"set_date":  today,
+		"is_active": true,
 	})
 }
 
@@ -379,11 +379,11 @@ func SubmitModuleAnswers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"completion_id":    completionID,
-		"score":            score,
-		"total_questions":  totalQuestions,
-		"percentage":       float64(score) / float64(totalQuestions) * 100,
-		"message":          "Module completed successfully",
+		"completion_id":   completionID,
+		"score":           score,
+		"total_questions": totalQuestions,
+		"percentage":      float64(score) / float64(totalQuestions) * 100,
+		"message":         "Module completed successfully",
 	})
 }
 
@@ -406,10 +406,4 @@ func extractYouTubeID(url string) string {
 	}
 	// If it's already just an ID, return it
 	return url
-}
-
-// Convert YouTube URL to embed URL
-func convertToYouTubeEmbed(url string) string {
-	videoID := extractYouTubeID(url)
-	return "https://www.youtube.com/embed/" + videoID
 }

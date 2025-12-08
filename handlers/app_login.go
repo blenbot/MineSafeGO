@@ -43,8 +43,8 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// 3. Fetch miner by email
-	usr, err := database.GetUserByEmail(ctx, req.Email, req.Role)
+	// 3. Fetch user by email
+	result, err := database.GetUserByEmail(ctx, req.Email, req.Role)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "Invalid email or password", http.StatusUnauthorized)
@@ -54,44 +54,89 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Compare password provided vs stored hash
-	if err := bcrypt.CompareHashAndPassword([]byte(usr.Password), []byte(req.Password)); err != nil {
-		// Wrong password
-		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
-		return
-	}
+	// 4. Handle different user types based on role
+	var userID, userName, role, miningSite string
+	var supervisorName string
 
-	// 5. Ensure miner is assigned to a supervisor
-	if usr.SupervisorID == nil || *usr.SupervisorID == "" {
-		http.Error(w, "Miner is not assigned to a supervisor", http.StatusConflict)
-		return
-	}
-
-	// 6. Check supervisor exists + get name
-	supervisorName, err := database.GetSupervisorNameByUserID(ctx, *usr.SupervisorID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Supervisor not found", http.StatusInternalServerError)
+	// Type assertion based on role
+	switch req.Role {
+	case "MINER", "OPERATOR":
+		usr, ok := result.(*database.User)
+		if !ok {
+			http.Error(w, "Invalid user type for role", http.StatusInternalServerError)
 			return
 		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+
+		// 5. Compare password provided vs stored hash
+		if err := bcrypt.CompareHashAndPassword([]byte(usr.Password), []byte(req.Password)); err != nil {
+			http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+			return
+		}
+
+		// 6. Ensure miner/operator is assigned to a supervisor
+		if usr.SupervisorID == nil || *usr.SupervisorID == "" {
+			http.Error(w, "User is not assigned to a supervisor", http.StatusConflict)
+			return
+		}
+
+		// 7. Check supervisor exists + get name
+		supervisorName, err = database.GetSupervisorNameByUserID(ctx, *usr.SupervisorID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.Error(w, "Supervisor not found", http.StatusInternalServerError)
+				return
+			}
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		userID = usr.UserID
+		userName = usr.Name
+		role = usr.Role
+		if usr.MiningSite != nil {
+			miningSite = *usr.MiningSite
+		}
+
+	case "SUPERVISOR":
+		sup, ok := result.(*database.Supervisor)
+		if !ok {
+			http.Error(w, "Invalid user type for role", http.StatusInternalServerError)
+			return
+		}
+
+		// 5. Compare password provided vs stored hash
+		if err := bcrypt.CompareHashAndPassword([]byte(sup.Password), []byte(req.Password)); err != nil {
+			http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+			return
+		}
+
+		userID = sup.UserID
+		userName = sup.Name
+		role = sup.Role
+		supervisorName = sup.Name // Supervisor's own name
+		if sup.MiningSite != nil {
+			miningSite = *sup.MiningSite
+		}
+
+	default:
+		http.Error(w, "Invalid role specified", http.StatusBadRequest)
 		return
 	}
 
-	// 7. Generate JWT using your existing auth.go
-	token, err := middleware.GenerateToken(usr.UserID, "MINER")
+	// 8. Generate JWT
+	token, err := middleware.GenerateToken(userID, role)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
 	}
 
-	// 8. Build response
+	// 9. Build response
 	resp := MinerLoginResponse{
 		Token:          token,
-		MinerID:        usr.UserID,
-		MinerName:      usr.Name,
+		MinerID:        userID,
+		MinerName:      userName,
 		SupervisorName: supervisorName,
-		MiningSite:     *usr.MiningSite,
+		MiningSite:     miningSite,
 	}
 
 	// 9. Send JSON response

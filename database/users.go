@@ -32,52 +32,95 @@ func GetSupervisorNameByUserID(ctx context.Context, supervisorUserID string) (st
 	return name, nil
 }
 
-func GetUserByEmail(ctx context.Context, email string, role string) (*User, error) {
+func GetUserByEmail(ctx context.Context, email string, role string) (interface{}, error) {
 	if DB == nil {
 		return nil, errors.New("database not initialized")
 	}
+	switch role {
+	case "MINER", "OPERATOR":
+		const query = `
+					SELECT 
+						id,
+						user_id,
+						name,
+						email,
+						phone,
+						password,
+						role,
+						mining_site,
+						location,
+						supervisor_id,
+						created_at,
+						updated_at
+					FROM users
+					WHERE LOWER(email) = LOWER($1)
+					AND role = $2
+					LIMIT 1
+				`
 
-	const query = `
-        SELECT 
-            id,
-            user_id,
-            name,
-            email,
-            phone,
-            password,
-            role,
-            mining_site,
-            location,
-            supervisor_id,
-            created_at,
-            updated_at
-        FROM users
-        WHERE LOWER(email) = LOWER($1)
-          AND role = $2
-        LIMIT 1
-    `
-
-	var u User
-	err := DB.QueryRowContext(ctx, query, email, role).Scan(
-		&u.ID,
-		&u.UserID,
-		&u.Name,
-		&u.Email,
-		&u.Phone,
-		&u.Password,
-		&u.Role,
-		&u.MiningSite,
-		&u.Location,
-		&u.SupervisorID,
-		&u.CreatedAt,
-		&u.UpdatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, sql.ErrNoRows
+		var u User
+		err := DB.QueryRowContext(ctx, query, email, role).Scan(
+			&u.ID,
+			&u.UserID,
+			&u.Name,
+			&u.Email,
+			&u.Phone,
+			&u.Password,
+			&u.Role,
+			&u.MiningSite,
+			&u.Location,
+			&u.SupervisorID,
+			&u.CreatedAt,
+			&u.UpdatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, sql.ErrNoRows
+			}
+			return nil, fmt.Errorf("GetMinerByEmail query failed: %w", err)
 		}
-		return nil, fmt.Errorf("GetMinerByEmail query failed: %w", err)
-	}
+		return &u, nil
+	case "SUPERVISOR":
+		const query = `
+					SELECT 
+						id,
+						user_id,
+						name,
+						email,
+						phone,
+						password,
+						role,
+						mining_site,
+						location,
+						created_at,
+						updated_at
+					FROM users
+					WHERE LOWER(email) = LOWER($1)
+					AND role = 'SUPERVISOR'
+					LIMIT 1
+				`
 
-	return &u, nil
+		var s Supervisor
+		err := DB.QueryRowContext(ctx, query, email).Scan(
+			&s.ID,
+			&s.UserID,
+			&s.Name,
+			&s.Email,
+			&s.Phone,
+			&s.Password,
+			&s.Role,
+			&s.MiningSite,
+			&s.Location,
+			&s.CreatedAt,
+			&s.UpdatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, sql.ErrNoRows
+			}
+			return nil, fmt.Errorf("GetMinerByEmail query failed: %w", err)
+		}
+		return &s, nil
+	}
+	return nil, fmt.Errorf("invalid role")
 }
