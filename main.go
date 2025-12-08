@@ -145,7 +145,7 @@ func getAllowedOrigins() []string {
 	if origins == "" {
 		// Default allowed origins for development
 		return []string{
-			"*"
+			"*",
 		}
 	}
 	
