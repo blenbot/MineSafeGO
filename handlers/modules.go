@@ -62,11 +62,11 @@ func CreateVideoModule(w http.ResponseWriter, r *http.Request) {
 
 func GetVideoModules(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(
-		`SELECT id, title, description, video_url, duration, category, thumbnail, is_active, created_by, created_at, updated_at
+		`SELECT id, title, COALESCE(description, ''), video_url, COALESCE(duration, 0), COALESCE(category, ''), COALESCE(thumbnail, ''), is_active, created_by, created_at, updated_at
 		 FROM video_modules WHERE is_active = true ORDER BY created_at DESC`,
 	)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Database error")
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
 		return
 	}
 	defer rows.Close()
@@ -74,11 +74,15 @@ func GetVideoModules(w http.ResponseWriter, r *http.Request) {
 	modules := []models.VideoModule{}
 	for rows.Next() {
 		var module models.VideoModule
+		var createdBy sql.NullString
 		err := rows.Scan(&module.ID, &module.Title, &module.Description, &module.VideoURL, &module.Duration,
-			&module.Category, &module.Thumbnail, &module.IsActive, &module.CreatedBy, &module.CreatedAt, &module.UpdatedAt)
+			&module.Category, &module.Thumbnail, &module.IsActive, &createdBy, &module.CreatedAt, &module.UpdatedAt)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Error scanning module data")
+			respondWithError(w, http.StatusInternalServerError, "Error scanning module data: "+err.Error())
 			return
+		}
+		if createdBy.Valid {
+			module.CreatedBy = &createdBy.String
 		}
 		modules = append(modules, module)
 	}
@@ -91,20 +95,25 @@ func GetVideoModule(w http.ResponseWriter, r *http.Request) {
 	moduleID := vars["id"]
 
 	var module models.VideoModule
+	var createdBy sql.NullString
 	err := database.DB.QueryRow(
-		`SELECT id, title, description, video_url, duration, category, thumbnail, is_active, created_by, created_at, updated_at
+		`SELECT id, title, COALESCE(description, ''), video_url, COALESCE(duration, 0), COALESCE(category, ''), COALESCE(thumbnail, ''), is_active, created_by, created_at, updated_at
 		 FROM video_modules WHERE id = $1`,
 		moduleID,
 	).Scan(&module.ID, &module.Title, &module.Description, &module.VideoURL, &module.Duration,
-		&module.Category, &module.Thumbnail, &module.IsActive, &module.CreatedBy, &module.CreatedAt, &module.UpdatedAt)
+		&module.Category, &module.Thumbnail, &module.IsActive, &createdBy, &module.CreatedAt, &module.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		respondWithError(w, http.StatusNotFound, "Video module not found")
 		return
 	}
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Database error")
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
 		return
+	}
+
+	if createdBy.Valid {
+		module.CreatedBy = &createdBy.String
 	}
 
 	respondWithJSON(w, http.StatusOK, module)
