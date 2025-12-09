@@ -518,3 +518,126 @@ func UploadVideo(w http.ResponseWriter, r *http.Request) {
 		"message":  "Video uploaded successfully",
 	})
 }
+
+// ==================== VIDEO LINK SUBMISSION (For Miners) ====================
+
+// SubmitVideoLinkRequest represents the request body for submitting a video link
+type SubmitVideoLinkRequest struct {
+	Title       string   `json:"title"`
+	VideoURL    string   `json:"video_url"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+}
+
+// SubmitVideoLink - POST /api/videos/submit-link
+// Allows miners to submit a video link for approval (not upload a file)
+func SubmitVideoLink(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req SubmitVideoLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	if req.Title == "" {
+		respondWithError(w, http.StatusBadRequest, "Title is required")
+		return
+	}
+
+	if req.VideoURL == "" {
+		respondWithError(w, http.StatusBadRequest, "Video URL is required")
+		return
+	}
+
+	// Validate URL format
+	if !strings.HasPrefix(req.VideoURL, "http://") && !strings.HasPrefix(req.VideoURL, "https://") {
+		respondWithError(w, http.StatusBadRequest, "Invalid video URL format")
+		return
+	}
+
+	// Convert tags to JSON
+	tagsJSON, _ := json.Marshal(req.Tags)
+	if req.Tags == nil {
+		tagsJSON = []byte("[]")
+	}
+
+	// Insert video module with pending approval status
+	var videoID int
+	err := database.DB.QueryRow(`
+		INSERT INTO video_modules (title, video_url, description, tags, created_by, is_active, approval_status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, false, 'pending', NOW(), NOW())
+		RETURNING id
+	`, req.Title, req.VideoURL, req.Description, tagsJSON, userID).Scan(&videoID)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to submit video: "+err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"success":  true,
+		"video_id": strconv.Itoa(videoID),
+		"message":  "Video link submitted for approval",
+		"status":   "pending",
+	})
+}
+
+// GetMySubmittedVideos - GET /api/videos/my-submissions
+// Get videos submitted by the current user (for miners to track their submissions)
+func GetMySubmittedVideos(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	rows, err := database.DB.Query(`
+		SELECT id, title, video_url, COALESCE(description, ''), COALESCE(approval_status, 'pending'), 
+		       COALESCE(review_feedback, ''), created_at
+		FROM video_modules
+		WHERE created_by = $1
+		ORDER BY created_at DESC
+	`, userID)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type SubmittedVideo struct {
+		ID             int    `json:"id"`
+		Title          string `json:"title"`
+		VideoURL       string `json:"video_url"`
+		Description    string `json:"description"`
+		ApprovalStatus string `json:"approval_status"`
+		ReviewFeedback string `json:"review_feedback"`
+		CreatedAt      string `json:"created_at"`
+	}
+
+	videos := []SubmittedVideo{}
+	for rows.Next() {
+		var video SubmittedVideo
+		var createdAt interface{}
+		err := rows.Scan(&video.ID, &video.Title, &video.VideoURL, &video.Description,
+			&video.ApprovalStatus, &video.ReviewFeedback, &createdAt)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error scanning video: "+err.Error())
+			return
+		}
+		// Handle time conversion
+		if t, ok := createdAt.(interface{ Format(string) string }); ok {
+			video.CreatedAt = t.Format("2006-01-02T15:04:05Z07:00")
+		}
+		videos = append(videos, video)
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"videos": videos,
+	})
+}

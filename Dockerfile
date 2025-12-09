@@ -33,6 +33,12 @@ COPY --from=builder /app/main .
 # Copy .env file (optional, can use environment variables instead)
 COPY --from=builder /app/.env .
 
+# Copy database configuration files (videos.json for seeding)
+COPY --from=builder /app/database/videos.json ./database/videos.json
+
+# Copy video assets folder
+COPY --from=builder /app/database/assets ./database/assets
+
 # Expose port
 EXPOSE 8080
 

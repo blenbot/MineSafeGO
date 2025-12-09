@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +12,12 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
+
+// Embed the videos.json file directly into the binary
+// This ensures it's always available regardless of working directory (critical for Render deployment)
+//
+//go:embed videos.json
+var embeddedVideosJSON []byte
 
 var DB *sql.DB
 
@@ -242,13 +249,44 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_ppe_checklist_supervisor ON ppe_checklist(supervisor_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_pre_start_completions_user ON pre_start_checklist_completions(user_id, date)`,
 		`CREATE INDEX IF NOT EXISTS idx_ppe_completions_user ON ppe_checklist_completions(user_id, date)`,
+		// Mine Zones table for supervisor zone allocation
+		`CREATE TABLE IF NOT EXISTS mine_zones (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			location VARCHAR(255),
+			capacity INTEGER DEFAULT 50,
+			mining_site VARCHAR(255),
+			is_active BOOLEAN DEFAULT true,
+			created_by VARCHAR(255) REFERENCES users(user_id),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		// Emergency forwards tracking table
+		`CREATE TABLE IF NOT EXISTS emergency_forwards (
+			id SERIAL PRIMARY KEY,
+			emergency_id INTEGER REFERENCES emergencies(id) ON DELETE CASCADE,
+			forwarded_by VARCHAR(255) REFERENCES users(user_id),
+			recipients TEXT,
+			message TEXT,
+			forwarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mine_zones_mining_site ON mine_zones(mining_site)`,
+		`CREATE INDEX IF NOT EXISTS idx_mine_zones_active ON mine_zones(is_active)`,
+		`CREATE INDEX IF NOT EXISTS idx_emergency_forwards_emergency ON emergency_forwards(emergency_id)`,
 		// Add columns if they don't exist (for existing databases)
 		`DO $$ BEGIN
 			ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
 			ALTER TABLE users ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]';
+			ALTER TABLE users ADD COLUMN IF NOT EXISTS zone_id INTEGER;
+			ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]';
 			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0;
 			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS dislikes_count INTEGER DEFAULT 0;
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS approval_status VARCHAR(50) DEFAULT 'approved';
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(255);
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS review_feedback TEXT;
+			ALTER TABLE video_modules ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0;
 		EXCEPTION WHEN OTHERS THEN NULL;
 		END $$`,
 	}
@@ -403,34 +441,19 @@ type QuestionEntry struct {
 	Tags     []string `json:"tags"`
 }
 
-// loadVideosConfig loads video configuration from videos.json
+// loadVideosConfig loads video configuration from embedded videos.json
 func loadVideosConfig() (*VideoConfig, error) {
-	// Try multiple paths for the videos.json file
-	paths := []string{
-		"database/videos.json",
-		"./database/videos.json",
-		"../database/videos.json",
-	}
-
-	var data []byte
-	var err error
-	for _, path := range paths {
-		data, err = os.ReadFile(path)
-		if err == nil {
-			log.Printf("Loaded videos configuration from: %s", path)
-			break
-		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not find videos.json in any expected location: %w", err)
+	// Use embedded videos.json (compiled into binary - works on Render, Docker, anywhere)
+	if len(embeddedVideosJSON) == 0 {
+		return nil, fmt.Errorf("embedded videos.json is empty - build error")
 	}
 
 	var config VideoConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse videos.json: %w", err)
+	if err := json.Unmarshal(embeddedVideosJSON, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse embedded videos.json: %w", err)
 	}
 
+	log.Printf("Loaded %d videos from embedded configuration", len(config.Videos))
 	return &config, nil
 }
 

@@ -66,6 +66,10 @@ func main() {
 	api.HandleFunc("/videos/{id}/dislike", handlers.DislikeVideo).Methods("POST")
 	// POST /api/videos/upload - Upload video with optional quiz (multipart)
 	api.HandleFunc("/videos/upload", handlers.UploadVideo).Methods("POST")
+	// POST /api/videos/submit-link - Submit video link for approval (miners)
+	api.HandleFunc("/videos/submit-link", handlers.SubmitVideoLink).Methods("POST")
+	// GET /api/videos/my-submissions - Get videos submitted by current user
+	api.HandleFunc("/videos/my-submissions", handlers.GetMySubmittedVideos).Methods("GET")
 
 	// ==================== TRAINING & QUIZ ====================
 	// GET /api/training/quiz?title=Safety%20Helmet%20Usage - Get quiz by video title
@@ -107,6 +111,23 @@ func main() {
 	minerRoutes.HandleFunc("/{id}", handlers.GetMiner).Methods("GET")
 	minerRoutes.HandleFunc("/{id}", handlers.UpdateMiner).Methods("PUT")
 	minerRoutes.HandleFunc("/{id}", handlers.DeleteMiner).Methods("DELETE")
+
+	// ==================== SUPERVISOR MODULE ROUTES ====================
+	supervisorRoutes := api.PathPrefix("/supervisor").Subrouter()
+	supervisorRoutes.Use(middleware.SupervisorOnly)
+	// Module management
+	supervisorRoutes.HandleFunc("/modules/pending", handlers.GetPendingModules).Methods("GET")
+	supervisorRoutes.HandleFunc("/modules/review/{id}", handlers.ReviewModule).Methods("POST")
+	supervisorRoutes.HandleFunc("/modules/uploaded", handlers.GetUploadedModules).Methods("GET")
+	// Zone management
+	supervisorRoutes.HandleFunc("/zones", handlers.GetZones).Methods("GET")
+	supervisorRoutes.HandleFunc("/zones", handlers.CreateZone).Methods("POST")
+	supervisorRoutes.HandleFunc("/allocate", handlers.AllocateMinerToZone).Methods("POST")
+	// Miners view with zone info
+	supervisorRoutes.HandleFunc("/miners", handlers.GetSupervisorMiners).Methods("GET")
+	// Emergency report management
+	supervisorRoutes.HandleFunc("/emergencies/{id}/download", handlers.DownloadEmergencyReport).Methods("GET")
+	supervisorRoutes.HandleFunc("/emergencies/{id}/forward", handlers.ForwardEmergencyReport).Methods("POST")
 
 	// Video module routes
 	api.HandleFunc("/modules", handlers.GetVideoModules).Methods("GET")
