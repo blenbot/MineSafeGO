@@ -261,6 +261,11 @@ func runMigrations() error {
 
 	log.Println("Migrations completed successfully")
 
+	// Update existing video URLs to use BASE_URL if set
+	if err := updateVideoURLsWithBaseURL(); err != nil {
+		log.Printf("Warning: Failed to update video URLs: %v", err)
+	}
+
 	// Seed default YouTube video tutorials
 	if err := seedDefaultVideos(); err != nil {
 		log.Printf("Warning: Failed to seed default videos: %v", err)
@@ -269,6 +274,48 @@ func runMigrations() error {
 	// Seed default checklists
 	if err := seedDefaultChecklists(); err != nil {
 		log.Printf("Warning: Failed to seed default checklists: %v", err)
+	}
+
+	return nil
+}
+
+func updateVideoURLsWithBaseURL() error {
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		log.Println("BASE_URL not set, skipping video URL update")
+		return nil
+	}
+
+	// Update video URLs that start with /assets/ to include the base URL
+	result, err := DB.Exec(`
+		UPDATE video_modules 
+		SET video_url = $1 || video_url 
+		WHERE video_url LIKE '/assets/%' 
+		AND video_url NOT LIKE 'http%'
+	`, baseURL)
+	if err != nil {
+		return fmt.Errorf("failed to update video URLs: %w", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("Updated %d video URLs with BASE_URL: %s", rowsAffected, baseURL)
+	}
+
+	// Also update uploaded videos that start with /uploads/
+	result, err = DB.Exec(`
+		UPDATE video_modules 
+		SET video_url = $1 || video_url 
+		WHERE video_url LIKE '/uploads/%' 
+		AND video_url NOT LIKE 'http%'
+	`, baseURL)
+	if err != nil {
+		return fmt.Errorf("failed to update uploaded video URLs: %w", err)
+	}
+
+	rowsAffected, _ = result.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("Updated %d uploaded video URLs with BASE_URL: %s", rowsAffected, baseURL)
 	}
 
 	return nil
@@ -287,6 +334,12 @@ func seedDefaultVideos() error {
 		return nil
 	}
 
+	// Get base URL from environment for absolute video URLs
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "" // Will use relative paths if BASE_URL not set (for local dev)
+	}
+
 	// Videos from database/assets with tags from video.json
 	videos := []struct {
 		title       string
@@ -298,7 +351,7 @@ func seedDefaultVideos() error {
 	}{
 		{
 			"Machine Safety First",
-			"/assets/Machine_Safety_First.mp4",
+			baseURL + "/assets/Machine_Safety_First.mp4",
 			300,
 			"Safety",
 			"Worker testimonial about machine safety following DGMS guidelines",
@@ -306,7 +359,7 @@ func seedDefaultVideos() error {
 		},
 		{
 			"Pre-Shift check",
-			"/assets/Pre_Shift_check.mp4",
+			baseURL + "/assets/Pre_Shift_check.mp4",
 			240,
 			"Safety",
 			"Pre-shift safety check procedures as per DGMS guidelines",
@@ -314,7 +367,7 @@ func seedDefaultVideos() error {
 		},
 		{
 			"Accident case study",
-			"/assets/Accident_case_study.mp4",
+			baseURL + "/assets/Accident_case_study.mp4",
 			360,
 			"Safety",
 			"Case study of gas leak accident and lessons learned",
