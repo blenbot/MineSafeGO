@@ -306,7 +306,7 @@ func seedDefaultVideos() error {
 		},
 		{
 			"Pre-Shift check",
-			"/assets/Pre-shift check.mp4",
+			"/assets/Pre-Shift check.mp4",
 			240,
 			"Safety",
 			"Pre-shift safety check procedures as per DGMS guidelines",
