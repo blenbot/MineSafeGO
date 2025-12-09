@@ -23,6 +23,7 @@ type MinerLoginResponse struct {
 	Token          string `json:"token"`
 	MinerID        string `json:"miner_id"`
 	MinerName      string `json:"miner_name"`
+	PhoneNumber    string `json:"phone_number"`
 	SupervisorName string `json:"supervisor_name"`
 	MiningSite     string `json:"location"`
 }
@@ -55,12 +56,12 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 4. Handle different user types based on role
-	var userID, userName, role, miningSite string
+	var userID, userName, role, phoneNumber, miningSite string
 	var supervisorName string
 
 	// Type assertion based on role
 	switch req.Role {
-	case "MINER", "OPERATOR":
+	case "MINER":
 		usr, ok := result.(*database.User)
 		if !ok {
 			http.Error(w, "Invalid user type for role", http.StatusInternalServerError)
@@ -73,7 +74,7 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 6. Ensure miner/operator is assigned to a supervisor
+		// 6. Ensure miner is assigned to a supervisor
 		if usr.SupervisorID == nil || *usr.SupervisorID == "" {
 			http.Error(w, "User is not assigned to a supervisor", http.StatusConflict)
 			return
@@ -92,6 +93,7 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 
 		userID = usr.UserID
 		userName = usr.Name
+		phoneNumber = *usr.Phone
 		role = usr.Role
 		if usr.MiningSite != nil {
 			miningSite = *usr.MiningSite
@@ -112,11 +114,33 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 
 		userID = sup.UserID
 		userName = sup.Name
+		phoneNumber = *sup.Phone
 		role = sup.Role
 		supervisorName = sup.Name // Supervisor's own name
 		if sup.MiningSite != nil {
 			miningSite = *sup.MiningSite
 		}
+
+	case "ADMIN":
+		adm, ok := result.(*database.Admin)
+		if !ok {
+			http.Error(w, "Invalid user type for role", http.StatusInternalServerError)
+			return
+		}
+
+		// 5. Compare password provided vs stored hash
+		if err := bcrypt.CompareHashAndPassword([]byte(adm.Password), []byte(req.Password)); err != nil {
+			http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+			return
+		}
+
+		userID = adm.UserID
+		userName = adm.Name
+		if adm.Phone != nil {
+			phoneNumber = *adm.Phone
+		}
+		role = adm.Role
+		supervisorName = "" // Admin has no supervisor
 
 	default:
 		http.Error(w, "Invalid role specified", http.StatusBadRequest)
@@ -135,6 +159,7 @@ func MinerAppLogin(w http.ResponseWriter, r *http.Request) {
 		Token:          token,
 		MinerID:        userID,
 		MinerName:      userName,
+		PhoneNumber:    phoneNumber,
 		SupervisorName: supervisorName,
 		MiningSite:     miningSite,
 	}

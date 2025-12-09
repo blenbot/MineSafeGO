@@ -44,7 +44,12 @@ func main() {
 	router.HandleFunc("/api/health", healthCheck).Methods("GET")
 	router.HandleFunc("/api/auth/signup", handlers.SupervisorSignup).Methods("POST")
 	router.HandleFunc("/api/auth/login", handlers.Login).Methods("POST")
+	router.HandleFunc("/api/auth/register-admin", handlers.RegisterAdmin).Methods("POST")
 	router.HandleFunc("/api/app/miner/login", handlers.MinerAppLogin).Methods("POST")
+
+	// ==================== ADMIN AUTH (Public) ====================
+	router.HandleFunc("/api/admin/signup", handlers.AdminSignup).Methods("POST")
+	router.HandleFunc("/api/admin/login", handlers.AdminLogin).Methods("POST")
 
 	// Protected routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -84,7 +89,7 @@ func main() {
 	// POST /api/app/profile/picture - Upload profile picture
 	api.HandleFunc("/app/profile/picture", handlers.UploadProfilePicture).Methods("POST")
 
-	// App routes (User protected - MINER/OPERATOR)
+	// App routes (User protected - MINER)
 	api.HandleFunc("/app/quiz-calendar", handlers.GetQuizCalendarAndStreak).Methods("GET")
 	api.HandleFunc("/app/checklists/pre-start", handlers.GetPreStartChecklistForApp).Methods("GET")
 	api.HandleFunc("/app/checklists/pre-start/complete", handlers.UpdatePreStartChecklistForApp).Methods("PUT")
@@ -147,6 +152,22 @@ func main() {
 	api.HandleFunc("/emergencies/{id}", handlers.GetEmergency).Methods("GET")
 	api.HandleFunc("/emergencies/{id}/media", handlers.UpdateEmergencyMedia).Methods("PUT")
 	api.HandleFunc("/emergencies/{id}/status", handlers.UpdateEmergencyStatus).Methods("PUT")
+
+	// ==================== ADMIN ROUTES (Admin only) ====================
+	adminRoutes := api.PathPrefix("/admin").Subrouter()
+	adminRoutes.Use(middleware.AdminOnly)
+	// Supervisor management by admin
+	adminRoutes.HandleFunc("/supervisors", handlers.AdminCreateSupervisor).Methods("POST")
+	adminRoutes.HandleFunc("/supervisors", handlers.AdminGetSupervisors).Methods("GET")
+	adminRoutes.HandleFunc("/supervisors/{id}", handlers.AdminGetSupervisor).Methods("GET")
+	adminRoutes.HandleFunc("/supervisors/{id}", handlers.AdminUpdateSupervisor).Methods("PUT")
+	adminRoutes.HandleFunc("/supervisors/{id}", handlers.AdminDeleteSupervisor).Methods("DELETE")
+	// Miner management by admin
+	adminRoutes.HandleFunc("/miners", handlers.AdminCreateMiner).Methods("POST")
+	adminRoutes.HandleFunc("/miners", handlers.AdminGetMiners).Methods("GET")
+	adminRoutes.HandleFunc("/miners/{id}", handlers.AdminGetMiner).Methods("GET")
+	adminRoutes.HandleFunc("/miners/{id}", handlers.AdminUpdateMiner).Methods("PUT")
+	adminRoutes.HandleFunc("/miners/{id}", handlers.AdminDeleteMiner).Methods("DELETE")
 
 	//app routes
 	//integrations := router.PathPrefix("/application").Subrouter()

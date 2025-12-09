@@ -37,8 +37,14 @@ type MinerMetrics struct {
 	LastCompletedAt  *time.Time
 }
 
-type OperatorMetrics struct {
-	TotalCompletions int
-	AverageScore     *float64
-	LastCompletedAt  *time.Time
+type Admin struct {
+	ID        int64
+	UserID    string
+	Name      string
+	Email     string
+	Phone     *string
+	Password  string
+	Role      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

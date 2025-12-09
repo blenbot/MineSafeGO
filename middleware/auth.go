@@ -101,6 +101,17 @@ func SupervisorOnly(next http.Handler) http.Handler {
 	})
 }
 
+func AdminOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role := r.Context().Value(UserRoleKey)
+		if role != "ADMIN" {
+			http.Error(w, "Admin access required", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	userID, ok := ctx.Value(UserIDKey).(string)
 	return userID, ok

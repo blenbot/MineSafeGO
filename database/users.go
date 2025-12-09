@@ -37,7 +37,7 @@ func GetUserByEmail(ctx context.Context, email string, role string) (interface{}
 		return nil, errors.New("database not initialized")
 	}
 	switch role {
-	case "MINER", "OPERATOR":
+	case "MINER":
 		const query = `
 					SELECT 
 						id,
@@ -118,9 +118,46 @@ func GetUserByEmail(ctx context.Context, email string, role string) (interface{}
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, sql.ErrNoRows
 			}
-			return nil, fmt.Errorf("GetMinerByEmail query failed: %w", err)
+			return nil, fmt.Errorf("GetSupervisorByEmail query failed: %w", err)
 		}
 		return &s, nil
+	case "ADMIN":
+		const query = `
+					SELECT 
+						id,
+						user_id,
+						name,
+						email,
+						phone,
+						password,
+						role,
+						created_at,
+						updated_at
+					FROM users
+					WHERE LOWER(email) = LOWER($1)
+					AND role = 'ADMIN'
+					LIMIT 1
+				`
+
+		var a Admin
+		err := DB.QueryRowContext(ctx, query, email).Scan(
+			&a.ID,
+			&a.UserID,
+			&a.Name,
+			&a.Email,
+			&a.Phone,
+			&a.Password,
+			&a.Role,
+			&a.CreatedAt,
+			&a.UpdatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, sql.ErrNoRows
+			}
+			return nil, fmt.Errorf("GetAdminByEmail query failed: %w", err)
+		}
+		return &a, nil
 	}
 	return nil, fmt.Errorf("invalid role")
 }

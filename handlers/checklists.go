@@ -276,7 +276,7 @@ func UpdatePreStartChecklistCompletion(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Completion updated successfully"})
 }
 
-// GetPreStartChecklistForApp - User (Miner/Operator) gets pre-start checklist with status
+// GetPreStartChecklistForApp - User (Miner) gets pre-start checklist with status
 // GET /api/app/checklists/pre-start
 func GetPreStartChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
@@ -335,7 +335,7 @@ func GetPreStartChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, items)
 }
 
-// UpdatePreStartChecklistForApp - User (Miner/Operator) marks item as completed
+// UpdatePreStartChecklistForApp - User (Miner) marks item as completed
 // PUT /api/app/checklists/pre-start/complete
 func UpdatePreStartChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
@@ -514,7 +514,7 @@ func UpdatePPEChecklistCompletion(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Completion updated successfully"})
 }
 
-// GetPPEChecklistForApp - User (Miner/Operator) gets PPE checklist with status
+// GetPPEChecklistForApp - User (Miner) gets PPE checklist with status
 // GET /api/app/checklists/ppe
 func GetPPEChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
@@ -573,7 +573,7 @@ func GetPPEChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, items)
 }
 
-// UpdatePPEChecklistForApp - User (Miner/Operator) marks PPE item as completed
+// UpdatePPEChecklistForApp - User (Miner) marks PPE item as completed
 // PUT /api/app/checklists/ppe/complete
 func UpdatePPEChecklistForApp(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
