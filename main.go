@@ -37,6 +37,9 @@ func main() {
 	// Serve uploaded files (videos, profile pictures)
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
+	// Serve database assets (seeded videos)
+	router.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", http.FileServer(http.Dir("database/assets"))))
+
 	// Public routes
 	router.HandleFunc("/api/health", healthCheck).Methods("GET")
 	router.HandleFunc("/api/auth/signup", handlers.SupervisorSignup).Methods("POST")
@@ -64,6 +67,8 @@ func main() {
 	api.HandleFunc("/training/quiz", handlers.GetQuizByTitle).Methods("GET")
 	// GET /api/training/quizzes - Get list of all quizzes
 	api.HandleFunc("/training/quizzes", handlers.GetQuizList).Methods("GET")
+	// GET /api/training/modules - Get all video modules with quiz info (numbered rows)
+	api.HandleFunc("/training/modules", handlers.GetVideoModulesWithQuizzes).Methods("GET")
 
 	// ==================== USER TAGS ====================
 	// GET /api/user/tags - Get user's interest tags

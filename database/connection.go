@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -286,48 +287,193 @@ func seedDefaultVideos() error {
 		return nil
 	}
 
+	// Videos from database/assets with tags from video.json
 	videos := []struct {
 		title       string
 		videoURL    string
 		duration    int
 		category    string
 		description string
+		tags        []string
 	}{
-		{"Mobile Equipment Safety", "https://www.youtube.com/embed/--P3CQY8lYI", 535, "Equipment", "Essential safety guidelines for operating mobile equipment in mining operations"},
-		{"Highwall Safety Procedures", "https://www.youtube.com/embed/LD-vNX6_QdE", 420, "Safety", "Critical safety protocols for working near highwalls in surface mining"},
-		{"Task Training Overview", "https://www.youtube.com/embed/Bf6pDKcOkmc", 380, "Training", "Comprehensive task-based training for mining operations"},
-		{"Blind Spots & Spotter Safety", "https://www.youtube.com/embed/PlDnBQ3Iidw", 340, "Safety", "Understanding blind spots and proper spotter procedures"},
-		{"Cranes & Man Lifts Safety", "https://www.youtube.com/embed/zK4BXed9_Hw", 450, "Equipment", "Safe operation of cranes and man lifts in mining environments"},
-		{"Dozer Operator Training", "https://www.youtube.com/embed/zlp51JG37lA", 520, "Equipment", "Complete training for dozer operators"},
-		{"Excavator Operator Training", "https://www.youtube.com/embed/ZQ2leag_Ucs", 480, "Equipment", "Professional excavator operation training"},
-		{"Haul Truck Operator Training", "https://www.youtube.com/embed/p_vsrhxIlR8", 560, "Equipment", "Comprehensive haul truck operation and safety"},
-		{"Loader Operator Training", "https://www.youtube.com/embed/-qsG3qDDqMk", 440, "Equipment", "Front-end loader operation and safety procedures"},
-		{"Mobile Equipment Inspections", "https://www.youtube.com/embed/ITFCI8A1Afk", 380, "Safety", "Pre-operational inspection procedures for mobile equipment"},
-		{"Contractor Responsibilities", "https://www.youtube.com/embed/ITFCI8A1Afk", 360, "Compliance", "Understanding contractor roles and responsibilities"},
-		{"Independent Contractors", "https://www.youtube.com/embed/--P3CQY8lYI", 340, "Compliance", "Guidelines for independent contractors in mining"},
-		{"Training Requirements", "https://www.youtube.com/embed/UbSm_lAxl5s", 420, "Training", "Mandatory training requirements for mine workers"},
-		{"Rules to Live By", "https://www.youtube.com/embed/9I8BzhEydgY", 300, "Safety", "Essential safety rules for all mine workers"},
-		{"Mining Environments", "https://www.youtube.com/embed/Xa-SejW-Crc", 400, "Safety", "Understanding different mining environments and hazards"},
-		{"Inspections Protocol", "https://www.youtube.com/embed/kTguRi2eoJg", 380, "Safety", "Standard inspection procedures and protocols"},
-		{"Water Safety", "https://www.youtube.com/embed/28loa0a22dE", 320, "Safety", "Safety procedures around water in mining operations"},
-		{"Statutory Rights", "https://www.youtube.com/embed/SN4Sfuhvs2Y", 360, "Compliance", "Understanding your statutory rights as a mine worker"},
-		{"Mine Act Overview", "https://www.youtube.com/embed/-TixTD1jgBY", 420, "Compliance", "Overview of the Mine Safety and Health Act"},
-		{"Rules and Procedures", "https://www.youtube.com/embed/T_9-QflQNT4", 380, "Compliance", "Standard operating rules and procedures"},
+		{
+			"Machine Safety First",
+			"/assets/Machine Safety First.mp4",
+			300,
+			"Safety",
+			"Worker testimonial about machine safety following DGMS guidelines",
+			[]string{"worker testimonial", "dgms guidelines"},
+		},
+		{
+			"Pre-Shift check",
+			"/assets/Pre-shift check.mp4",
+			240,
+			"Safety",
+			"Pre-shift safety check procedures as per DGMS guidelines",
+			[]string{"pre-shift", "dgms guidelines"},
+		},
+		{
+			"Accident case study",
+			"/assets/Accident case study.mp4",
+			360,
+			"Safety",
+			"Case study of gas leak accident and lessons learned",
+			[]string{"gas leak", "accident"},
+		},
 	}
 
-	log.Println("Seeding default video modules...")
+	log.Println("Seeding default video modules from assets...")
 	for _, v := range videos {
-		_, err := DB.Exec(
-			`INSERT INTO video_modules (title, description, video_url, duration, category, thumbnail, is_active, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())`,
-			v.title, v.description, v.videoURL, v.duration, v.category, "https://img.youtube.com/vi/"+extractYouTubeID(v.videoURL)+"/maxresdefault.jpg",
-		)
+		tagsJSON, _ := json.Marshal(v.tags)
+		var videoID int
+		err := DB.QueryRow(
+			`INSERT INTO video_modules (title, description, video_url, duration, category, tags, is_active, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
+			 RETURNING id`,
+			v.title, v.description, v.videoURL, v.duration, v.category, tagsJSON,
+		).Scan(&videoID)
 		if err != nil {
 			return fmt.Errorf("failed to seed video '%s': %w", v.title, err)
 		}
+		log.Printf("Seeded video: %s (ID: %d)", v.title, videoID)
 	}
 
 	log.Printf("Successfully seeded %d default video modules", len(videos))
+
+	// Seed quizzes for each video
+	if err := seedDefaultQuizzes(); err != nil {
+		log.Printf("Warning: Failed to seed default quizzes: %v", err)
+	}
+
+	return nil
+}
+
+func seedDefaultQuizzes() error {
+	// Check if quizzes already exist
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM quizzes").Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	if count > 0 {
+		log.Println("Quizzes already seeded, skipping...")
+		return nil
+	}
+
+	// Define quizzes for each video
+	quizzes := []struct {
+		videoTitle string
+		quizTitle  string
+		tags       []string
+		questions  []struct {
+			question string
+			options  []string
+			correct  int
+			tags     []string
+		}
+	}{
+		{
+			videoTitle: "Machine Safety First",
+			quizTitle:  "Machine Safety Quiz",
+			tags:       []string{"worker testimonial", "dgms guidelines", "machine safety"},
+			questions: []struct {
+				question string
+				options  []string
+				correct  int
+				tags     []string
+			}{
+				{
+					question: "What should you do before operating any machine?",
+					options:  []string{"Start immediately", "Check machine condition and safety guards", "Wait for supervisor", "Skip inspection if in hurry"},
+					correct:  1,
+					tags:     []string{"machine safety", "pre-operation"},
+				},
+				{
+					question: "According to DGMS guidelines, who is responsible for machine safety?",
+					options:  []string{"Only supervisor", "Only operator", "Both operator and supervisor", "Safety officer only"},
+					correct:  2,
+					tags:     []string{"dgms guidelines", "responsibility"},
+				},
+				{
+					question: "What is the first action when you notice a machine malfunction?",
+					options:  []string{"Continue working", "Stop the machine and report", "Try to fix it yourself", "Ignore if minor"},
+					correct:  1,
+					tags:     []string{"emergency", "malfunction"},
+				},
+			},
+		},
+		{
+			videoTitle: "Pre-Shift check",
+			quizTitle:  "Pre-Shift Safety Check Quiz",
+			tags:       []string{"pre-shift", "dgms guidelines", "inspection"},
+			questions: []struct {
+				question string
+				options  []string
+				correct  int
+				tags     []string
+			}{
+				{
+					question: "When should pre-shift checks be performed?",
+					options:  []string{"Once a week", "Before every shift", "Only on Monday", "When supervisor asks"},
+					correct:  1,
+					tags:     []string{"pre-shift", "timing"},
+				},
+				{
+					question: "What should be checked during pre-shift inspection?",
+					options:  []string{"Only equipment", "Equipment, ventilation, and safety devices", "Nothing specific", "Only if problems reported"},
+					correct:  1,
+					tags:     []string{"inspection", "checklist"},
+				},
+				{
+					question: "Who should sign off on pre-shift checks according to DGMS?",
+					options:  []string{"Anyone available", "Designated competent person", "New trainee", "No signature needed"},
+					correct:  1,
+					tags:     []string{"dgms guidelines", "documentation"},
+				},
+			},
+		},
+	}
+
+	log.Println("Seeding default quizzes...")
+	for _, quiz := range quizzes {
+		// Get video ID by title
+		var videoID int
+		err := DB.QueryRow("SELECT id FROM video_modules WHERE title = $1", quiz.videoTitle).Scan(&videoID)
+		if err != nil {
+			log.Printf("Warning: Could not find video '%s', skipping quiz", quiz.videoTitle)
+			continue
+		}
+
+		// Insert quiz
+		quizTagsJSON, _ := json.Marshal(quiz.tags)
+		var quizID int
+		err = DB.QueryRow(`
+			INSERT INTO quizzes (video_id, title, tags, created_at, updated_at)
+			VALUES ($1, $2, $3, NOW(), NOW())
+			RETURNING id
+		`, videoID, quiz.quizTitle, quizTagsJSON).Scan(&quizID)
+		if err != nil {
+			return fmt.Errorf("failed to seed quiz '%s': %w", quiz.quizTitle, err)
+		}
+
+		// Insert questions
+		for _, q := range quiz.questions {
+			optionsJSON, _ := json.Marshal(q.options)
+			qTagsJSON, _ := json.Marshal(q.tags)
+			_, err = DB.Exec(`
+				INSERT INTO quiz_questions (quiz_id, question, options, correct_answer, tags, created_at)
+				VALUES ($1, $2, $3, $4, $5, NOW())
+			`, quizID, q.question, optionsJSON, q.correct, qTagsJSON)
+			if err != nil {
+				return fmt.Errorf("failed to seed question for quiz '%s': %w", quiz.quizTitle, err)
+			}
+		}
+
+		log.Printf("Seeded quiz: %s with %d questions", quiz.quizTitle, len(quiz.questions))
+	}
+
+	log.Printf("Successfully seeded %d default quizzes", len(quizzes))
 	return nil
 }
 

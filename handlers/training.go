@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // ==================== QUIZ RESPONSES ====================
@@ -213,7 +214,7 @@ func GetQuizList(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		quiz.ID = string(rune(idInt))
+		quiz.ID = strconv.Itoa(idInt)
 		json.Unmarshal(tagsJSON, &quiz.Tags)
 		if quiz.Tags == nil {
 			quiz.Tags = []string{}
@@ -255,7 +256,7 @@ func GetQuizList(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			quiz.ID = "legacy-" + string(rune(idInt))
+			quiz.ID = "legacy-" + strconv.Itoa(idInt)
 			quiz.Title = "Quiz: " + quiz.VideoTitle
 			json.Unmarshal(tagsJSON, &quiz.Tags)
 			if quiz.Tags == nil {
@@ -273,5 +274,109 @@ func GetQuizList(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, QuizListResponse{
 		Quizzes: quizzes,
+	})
+}
+
+// ==================== VIDEO MODULES WITH QUIZZES ====================
+
+type VideoModuleItem struct {
+	Row          int      `json:"row"`
+	VideoID      int      `json:"video_id"`
+	VideoTitle   string   `json:"video_title"`
+	VideoURL     string   `json:"video_url"`
+	VideoTags    []string `json:"video_tags"`
+	HasQuiz      bool     `json:"has_quiz"`
+	QuizID       *int     `json:"quiz_id,omitempty"`
+	QuizTitle    string   `json:"quiz_title,omitempty"`
+	QuizTags     []string `json:"quiz_tags,omitempty"`
+	NumQuestions int      `json:"num_questions"`
+}
+
+type VideoModulesResponse struct {
+	Modules []VideoModuleItem `json:"modules"`
+	Total   int               `json:"total"`
+}
+
+// GetVideoModulesWithQuizzes - GET /api/training/modules - Returns all videos with their quiz info in numbered rows
+func GetVideoModulesWithQuizzes(w http.ResponseWriter, r *http.Request) {
+	_, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	// Get all video modules with their associated quiz info
+	rows, err := database.DB.Query(`
+		SELECT 
+			vm.id as video_id,
+			vm.title as video_title,
+			vm.video_url,
+			COALESCE(vm.tags, '[]'::jsonb) as video_tags,
+			q.id as quiz_id,
+			q.title as quiz_title,
+			COALESCE(q.tags, '[]'::jsonb) as quiz_tags,
+			(SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) as num_questions
+		FROM video_modules vm
+		LEFT JOIN quizzes q ON q.video_id = vm.id
+		WHERE vm.is_active = true
+		ORDER BY vm.id ASC
+	`)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	modules := []VideoModuleItem{}
+	rowNum := 1
+	for rows.Next() {
+		var module VideoModuleItem
+		var videoTagsJSON, quizTagsJSON []byte
+		var quizID sql.NullInt64
+		var quizTitle sql.NullString
+
+		err := rows.Scan(
+			&module.VideoID,
+			&module.VideoTitle,
+			&module.VideoURL,
+			&videoTagsJSON,
+			&quizID,
+			&quizTitle,
+			&quizTagsJSON,
+			&module.NumQuestions,
+		)
+		if err != nil {
+			continue
+		}
+
+		module.Row = rowNum
+		rowNum++
+
+		json.Unmarshal(videoTagsJSON, &module.VideoTags)
+		if module.VideoTags == nil {
+			module.VideoTags = []string{}
+		}
+
+		if quizID.Valid {
+			module.HasQuiz = true
+			qID := int(quizID.Int64)
+			module.QuizID = &qID
+			module.QuizTitle = quizTitle.String
+			json.Unmarshal(quizTagsJSON, &module.QuizTags)
+			if module.QuizTags == nil {
+				module.QuizTags = []string{}
+			}
+		} else {
+			module.HasQuiz = false
+			module.QuizTags = []string{}
+		}
+
+		modules = append(modules, module)
+	}
+
+	respondWithJSON(w, http.StatusOK, VideoModulesResponse{
+		Modules: modules,
+		Total:   len(modules),
 	})
 }
