@@ -298,7 +298,7 @@ func seedDefaultVideos() error {
 	}{
 		{
 			"Machine Safety First",
-			"/assets/Machine Safety First.mp4",
+			"/assets/Machine_Safety_First.mp4",
 			300,
 			"Safety",
 			"Worker testimonial about machine safety following DGMS guidelines",
@@ -306,7 +306,7 @@ func seedDefaultVideos() error {
 		},
 		{
 			"Pre-Shift check",
-			"/assets/Pre-Shift check.mp4",
+			"/assets/Pre_Shift_check.mp4",
 			240,
 			"Safety",
 			"Pre-shift safety check procedures as per DGMS guidelines",
@@ -314,7 +314,7 @@ func seedDefaultVideos() error {
 		},
 		{
 			"Accident case study",
-			"/assets/Accident case study.mp4",
+			"/assets/Accident_case_study.mp4",
 			360,
 			"Safety",
 			"Case study of gas leak accident and lessons learned",
