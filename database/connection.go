@@ -433,6 +433,36 @@ func seedDefaultQuizzes() error {
 				},
 			},
 		},
+		{
+			videoTitle: "Accident case study",
+			quizTitle:  "Gas Leak Accident Prevention Quiz",
+			tags:       []string{"gas leak", "accident", "prevention"},
+			questions: []struct {
+				question string
+				options  []string
+				correct  int
+				tags     []string
+			}{
+				{
+					question: "What is the primary cause of gas leak accidents in mines?",
+					options:  []string{"Poor ventilation and lack of monitoring", "Too many workers", "Weather conditions", "Equipment color"},
+					correct:  0,
+					tags:     []string{"gas leak", "causes"},
+				},
+				{
+					question: "What should you do immediately if you detect a gas leak?",
+					options:  []string{"Continue working", "Evacuate and alert others", "Try to fix it alone", "Wait and observe"},
+					correct:  1,
+					tags:     []string{"emergency", "response"},
+				},
+				{
+					question: "How often should gas detection equipment be calibrated?",
+					options:  []string{"Never", "Once a year", "As per manufacturer guidelines and DGMS regulations", "Only when broken"},
+					correct:  2,
+					tags:     []string{"equipment", "maintenance"},
+				},
+			},
+		},
 	}
 
 	log.Println("Seeding default quizzes...")
