@@ -1,0 +1,126 @@
+{
+  "videos": [
+    {
+      "filename": "Machine_Safety_First.mp4",
+      "title": "Machine Safety First",
+      "description": "Worker testimonial about machine safety following DGMS guidelines",
+      "duration": 300,
+      "category": "Safety",
+      "language": "English",
+      "tags": ["worker testimonial", "dgms guidelines", "machine safety", "english"],
+      "quiz": {
+        "title": "Machine Safety Quiz",
+        "questions": [
+          {
+            "question": "What should you do before operating any machine?",
+            "options": ["Start immediately", "Check machine condition and safety guards", "Wait for supervisor", "Skip inspection if in hurry"],
+            "correct": 1,
+            "tags": ["machine safety", "pre-operation"]
+          },
+          {
+            "question": "According to DGMS guidelines, who is responsible for machine safety?",
+            "options": ["Only supervisor", "Only operator", "Both operator and supervisor", "Safety officer only"],
+            "correct": 2,
+            "tags": ["dgms guidelines", "responsibility"]
+          },
+          {
+            "question": "What is the first action when you notice a machine malfunction?",
+            "options": ["Continue working", "Stop the machine and report", "Try to fix it yourself", "Ignore if minor"],
+            "correct": 1,
+            "tags": ["emergency", "malfunction"]
+          }
+        ]
+      }
+    },
+    {
+      "filename": "Pre_Shift_check.mp4",
+      "title": "Pre-Shift Check",
+      "description": "Pre-shift safety check procedures as per DGMS guidelines",
+      "duration": 240,
+      "category": "Safety",
+      "language": "English",
+      "tags": ["pre-shift", "dgms guidelines", "inspection", "english"],
+      "quiz": {
+        "title": "Pre-Shift Safety Check Quiz",
+        "questions": [
+          {
+            "question": "When should pre-shift checks be performed?",
+            "options": ["Once a week", "Before every shift", "Only on Monday", "When supervisor asks"],
+            "correct": 1,
+            "tags": ["pre-shift", "timing"]
+          },
+          {
+            "question": "What should be checked during pre-shift inspection?",
+            "options": ["Only equipment", "Equipment, ventilation, and safety devices", "Nothing specific", "Only if problems reported"],
+            "correct": 1,
+            "tags": ["inspection", "checklist"]
+          },
+          {
+            "question": "Who should sign off on pre-shift checks according to DGMS?",
+            "options": ["Anyone available", "Designated competent person", "New trainee", "No signature needed"],
+            "correct": 1,
+            "tags": ["dgms guidelines", "documentation"]
+          }
+        ]
+      }
+    },
+    {
+      "filename": "worker_testimonial.mp4",
+      "title": "Worker Testimonial - Gas Safety",
+      "description": "தமிழ் மொழியில் வாயு பாதுகாப்பு பற்றிய தொழிலாளர் சாட்சியம் - Worker testimonial about gas safety awareness in Tamil language",
+      "duration": 280,
+      "category": "Safety",
+      "language": "Tamil",
+      "tags": ["tamil", "gas", "accident", "worker testimonial", "regional language"],
+      "quiz": {
+        "title": "Gas Safety Awareness Quiz (Tamil Video)",
+        "questions": [
+          {
+            "question": "வாயு கசிவை கண்டறிந்தால் முதலில் என்ன செய்ய வேண்டும்? (What should you do first if you detect a gas leak?)",
+            "options": [
+              "வேலையை தொடரவும் (Continue working)",
+              "உடனடியாக வெளியேறி மற்றவர்களை எச்சரிக்கவும் (Evacuate immediately and alert others)",
+              "நீங்களே சரி செய்ய முயற்சிக்கவும் (Try to fix it yourself)",
+              "காத்திருந்து பாருங்கள் (Wait and observe)"
+            ],
+            "correct": 1,
+            "tags": ["gas safety", "emergency response", "tamil"]
+          },
+          {
+            "question": "சுரங்கத்தில் வாயு கண்காணிப்பு எவ்வளவு அடிக்கடி செய்யப்பட வேண்டும்? (How frequently should gas monitoring be done in mines?)",
+            "options": [
+              "வாரத்திற்கு ஒரு முறை (Once a week)",
+              "தொடர்ச்சியாக / ஒவ்வொரு ஷிப்ட்டிலும் (Continuously / Every shift)",
+              "மாதத்திற்கு ஒரு முறை (Once a month)",
+              "பிரச்சனை இருந்தால் மட்டும் (Only when there's a problem)"
+            ],
+            "correct": 1,
+            "tags": ["gas monitoring", "safety protocol", "tamil"]
+          },
+          {
+            "question": "வாயு கசிவு விபத்துக்கான முக்கிய காரணம் என்ன? (What is the main cause of gas leak accidents?)",
+            "options": [
+              "மோசமான காற்றோட்டம் மற்றும் கண்காணிப்பு இல்லாமை (Poor ventilation and lack of monitoring)",
+              "அதிக தொழிலாளர்கள் (Too many workers)",
+              "வானிலை நிலைகள் (Weather conditions)",
+              "உபகரண நிறம் (Equipment color)"
+            ],
+            "correct": 0,
+            "tags": ["gas leak", "causes", "tamil"]
+          },
+          {
+            "question": "அவசர நேரத்தில் யாரை முதலில் தெரிவிக்க வேண்டும்? (Who should be informed first during an emergency?)",
+            "options": [
+              "குடும்பத்தினர் (Family members)",
+              "மேற்பார்வையாளர் மற்றும் பாதுகாப்பு அதிகாரி (Supervisor and Safety Officer)",
+              "ஊடகங்கள் (Media)",
+              "யாருக்கும் சொல்ல வேண்டாம் (Don't tell anyone)"
+            ],
+            "correct": 1,
+            "tags": ["emergency", "communication", "tamil"]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -334,64 +334,38 @@ func seedDefaultVideos() error {
 		return nil
 	}
 
+	// Load videos from JSON configuration file
+	videosConfig, err := loadVideosConfig()
+	if err != nil {
+		log.Printf("Warning: Could not load videos.json, using defaults: %v", err)
+		return nil
+	}
+
 	// Get base URL from environment for absolute video URLs
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
 		baseURL = "" // Will use relative paths if BASE_URL not set (for local dev)
 	}
 
-	// Videos from database/assets with tags from video.json
-	videos := []struct {
-		title       string
-		videoURL    string
-		duration    int
-		category    string
-		description string
-		tags        []string
-	}{
-		{
-			"Machine Safety First",
-			baseURL + "/assets/Machine_Safety_First.mp4",
-			300,
-			"Safety",
-			"Worker testimonial about machine safety following DGMS guidelines",
-			[]string{"worker testimonial", "dgms guidelines"},
-		},
-		{
-			"Pre-Shift check",
-			baseURL + "/assets/Pre_Shift_check.mp4",
-			240,
-			"Safety",
-			"Pre-shift safety check procedures as per DGMS guidelines",
-			[]string{"pre-shift", "dgms guidelines"},
-		},
-		{
-			"Accident case study",
-			baseURL + "/assets/Accident_case_study.mp4",
-			360,
-			"Safety",
-			"Case study of gas leak accident and lessons learned",
-			[]string{"gas leak", "accident"},
-		},
-	}
+	log.Println("Seeding default video modules from videos.json...")
+	for _, v := range videosConfig.Videos {
+		videoURL := baseURL + "/assets/" + v.Filename
+		tagsJSON, _ := json.Marshal(v.Tags)
 
-	log.Println("Seeding default video modules from assets...")
-	for _, v := range videos {
-		tagsJSON, _ := json.Marshal(v.tags)
 		var videoID int
 		err := DB.QueryRow(
 			`INSERT INTO video_modules (title, description, video_url, duration, category, tags, is_active, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
 			 RETURNING id`,
-			v.title, v.description, v.videoURL, v.duration, v.category, tagsJSON,
+			v.Title, v.Description, videoURL, v.Duration, v.Category, tagsJSON,
 		).Scan(&videoID)
 		if err != nil {
-			return fmt.Errorf("failed to seed video '%s': %w", v.title, err)
+			return fmt.Errorf("failed to seed video '%s': %w", v.Title, err)
 		}
-		log.Printf("Seeded video: %s (ID: %d)", v.title, videoID)
+		log.Printf("Seeded video: %s (ID: %d, Language: %s)", v.Title, videoID, v.Language)
 	}
 
-	log.Printf("Successfully seeded %d default video modules", len(videos))
+	log.Printf("Successfully seeded %d default video modules", len(videosConfig.Videos))
 
 	// Seed quizzes for each video
 	if err := seedDefaultQuizzes(); err != nil {
@@ -399,6 +373,65 @@ func seedDefaultVideos() error {
 	}
 
 	return nil
+}
+
+// VideoConfig represents the structure of videos.json
+type VideoConfig struct {
+	Videos []VideoEntry `json:"videos"`
+}
+
+type VideoEntry struct {
+	Filename    string     `json:"filename"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Duration    int        `json:"duration"`
+	Category    string     `json:"category"`
+	Language    string     `json:"language"`
+	Tags        []string   `json:"tags"`
+	Quiz        *QuizEntry `json:"quiz,omitempty"`
+}
+
+type QuizEntry struct {
+	Title     string          `json:"title"`
+	Questions []QuestionEntry `json:"questions"`
+}
+
+type QuestionEntry struct {
+	Question string   `json:"question"`
+	Options  []string `json:"options"`
+	Correct  int      `json:"correct"`
+	Tags     []string `json:"tags"`
+}
+
+// loadVideosConfig loads video configuration from videos.json
+func loadVideosConfig() (*VideoConfig, error) {
+	// Try multiple paths for the videos.json file
+	paths := []string{
+		"database/videos.json",
+		"./database/videos.json",
+		"../database/videos.json",
+	}
+
+	var data []byte
+	var err error
+	for _, path := range paths {
+		data, err = os.ReadFile(path)
+		if err == nil {
+			log.Printf("Loaded videos configuration from: %s", path)
+			break
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("could not find videos.json in any expected location: %w", err)
+	}
+
+	var config VideoConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse videos.json: %w", err)
+	}
+
+	return &config, nil
 }
 
 func seedDefaultQuizzes() error {
@@ -414,149 +447,63 @@ func seedDefaultQuizzes() error {
 		return nil
 	}
 
-	// Define quizzes for each video
-	quizzes := []struct {
-		videoTitle string
-		quizTitle  string
-		tags       []string
-		questions  []struct {
-			question string
-			options  []string
-			correct  int
-			tags     []string
-		}
-	}{
-		{
-			videoTitle: "Machine Safety First",
-			quizTitle:  "Machine Safety Quiz",
-			tags:       []string{"worker testimonial", "dgms guidelines", "machine safety"},
-			questions: []struct {
-				question string
-				options  []string
-				correct  int
-				tags     []string
-			}{
-				{
-					question: "What should you do before operating any machine?",
-					options:  []string{"Start immediately", "Check machine condition and safety guards", "Wait for supervisor", "Skip inspection if in hurry"},
-					correct:  1,
-					tags:     []string{"machine safety", "pre-operation"},
-				},
-				{
-					question: "According to DGMS guidelines, who is responsible for machine safety?",
-					options:  []string{"Only supervisor", "Only operator", "Both operator and supervisor", "Safety officer only"},
-					correct:  2,
-					tags:     []string{"dgms guidelines", "responsibility"},
-				},
-				{
-					question: "What is the first action when you notice a machine malfunction?",
-					options:  []string{"Continue working", "Stop the machine and report", "Try to fix it yourself", "Ignore if minor"},
-					correct:  1,
-					tags:     []string{"emergency", "malfunction"},
-				},
-			},
-		},
-		{
-			videoTitle: "Pre-Shift check",
-			quizTitle:  "Pre-Shift Safety Check Quiz",
-			tags:       []string{"pre-shift", "dgms guidelines", "inspection"},
-			questions: []struct {
-				question string
-				options  []string
-				correct  int
-				tags     []string
-			}{
-				{
-					question: "When should pre-shift checks be performed?",
-					options:  []string{"Once a week", "Before every shift", "Only on Monday", "When supervisor asks"},
-					correct:  1,
-					tags:     []string{"pre-shift", "timing"},
-				},
-				{
-					question: "What should be checked during pre-shift inspection?",
-					options:  []string{"Only equipment", "Equipment, ventilation, and safety devices", "Nothing specific", "Only if problems reported"},
-					correct:  1,
-					tags:     []string{"inspection", "checklist"},
-				},
-				{
-					question: "Who should sign off on pre-shift checks according to DGMS?",
-					options:  []string{"Anyone available", "Designated competent person", "New trainee", "No signature needed"},
-					correct:  1,
-					tags:     []string{"dgms guidelines", "documentation"},
-				},
-			},
-		},
-		{
-			videoTitle: "Accident case study",
-			quizTitle:  "Gas Leak Accident Prevention Quiz",
-			tags:       []string{"gas leak", "accident", "prevention"},
-			questions: []struct {
-				question string
-				options  []string
-				correct  int
-				tags     []string
-			}{
-				{
-					question: "What is the primary cause of gas leak accidents in mines?",
-					options:  []string{"Poor ventilation and lack of monitoring", "Too many workers", "Weather conditions", "Equipment color"},
-					correct:  0,
-					tags:     []string{"gas leak", "causes"},
-				},
-				{
-					question: "What should you do immediately if you detect a gas leak?",
-					options:  []string{"Continue working", "Evacuate and alert others", "Try to fix it alone", "Wait and observe"},
-					correct:  1,
-					tags:     []string{"emergency", "response"},
-				},
-				{
-					question: "How often should gas detection equipment be calibrated?",
-					options:  []string{"Never", "Once a year", "As per manufacturer guidelines and DGMS regulations", "Only when broken"},
-					correct:  2,
-					tags:     []string{"equipment", "maintenance"},
-				},
-			},
-		},
+	// Load videos config which contains quiz data
+	videosConfig, err := loadVideosConfig()
+	if err != nil {
+		log.Printf("Warning: Could not load videos.json for quizzes: %v", err)
+		return nil
 	}
 
-	log.Println("Seeding default quizzes...")
-	for _, quiz := range quizzes {
-		// Get video ID by title
-		var videoID int
-		err := DB.QueryRow("SELECT id FROM video_modules WHERE title = $1", quiz.videoTitle).Scan(&videoID)
-		if err != nil {
-			log.Printf("Warning: Could not find video '%s', skipping quiz", quiz.videoTitle)
+	log.Println("Seeding default quizzes from videos.json...")
+	quizCount := 0
+	for _, video := range videosConfig.Videos {
+		// Skip videos without quiz data
+		if video.Quiz == nil || len(video.Quiz.Questions) == 0 {
+			log.Printf("Skipping quiz for video '%s' - no quiz data defined", video.Title)
 			continue
 		}
 
+		// Get video ID by title
+		var videoID int
+		err := DB.QueryRow("SELECT id FROM video_modules WHERE title = $1", video.Title).Scan(&videoID)
+		if err != nil {
+			log.Printf("Warning: Could not find video '%s', skipping quiz", video.Title)
+			continue
+		}
+
+		// Build quiz tags from video tags
+		quizTags := append(video.Tags, video.Category, video.Language)
+		quizTagsJSON, _ := json.Marshal(quizTags)
+
 		// Insert quiz
-		quizTagsJSON, _ := json.Marshal(quiz.tags)
 		var quizID int
 		err = DB.QueryRow(`
 			INSERT INTO quizzes (video_id, title, tags, created_at, updated_at)
 			VALUES ($1, $2, $3, NOW(), NOW())
 			RETURNING id
-		`, videoID, quiz.quizTitle, quizTagsJSON).Scan(&quizID)
+		`, videoID, video.Quiz.Title, quizTagsJSON).Scan(&quizID)
 		if err != nil {
-			return fmt.Errorf("failed to seed quiz '%s': %w", quiz.quizTitle, err)
+			return fmt.Errorf("failed to seed quiz '%s': %w", video.Quiz.Title, err)
 		}
 
 		// Insert questions
-		for _, q := range quiz.questions {
-			optionsJSON, _ := json.Marshal(q.options)
-			qTagsJSON, _ := json.Marshal(q.tags)
+		for _, q := range video.Quiz.Questions {
+			optionsJSON, _ := json.Marshal(q.Options)
+			qTagsJSON, _ := json.Marshal(q.Tags)
 			_, err = DB.Exec(`
 				INSERT INTO quiz_questions (quiz_id, question, options, correct_answer, tags, created_at)
 				VALUES ($1, $2, $3, $4, $5, NOW())
-			`, quizID, q.question, optionsJSON, q.correct, qTagsJSON)
+			`, quizID, q.Question, optionsJSON, q.Correct, qTagsJSON)
 			if err != nil {
-				return fmt.Errorf("failed to seed question for quiz '%s': %w", quiz.quizTitle, err)
+				return fmt.Errorf("failed to seed question for quiz '%s': %w", video.Quiz.Title, err)
 			}
 		}
 
-		log.Printf("Seeded quiz: %s with %d questions", quiz.quizTitle, len(quiz.questions))
+		log.Printf("Seeded quiz: %s with %d questions (Language: %s)", video.Quiz.Title, len(video.Quiz.Questions), video.Language)
+		quizCount++
 	}
 
-	log.Printf("Successfully seeded %d default quizzes", len(quizzes))
+	log.Printf("Successfully seeded %d default quizzes from videos.json", quizCount)
 	return nil
 }
 
