@@ -273,6 +273,34 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_mine_zones_mining_site ON mine_zones(mining_site)`,
 		`CREATE INDEX IF NOT EXISTS idx_mine_zones_active ON mine_zones(is_active)`,
 		`CREATE INDEX IF NOT EXISTS idx_emergency_forwards_emergency ON emergency_forwards(emergency_id)`,
+		// PPE Statistics table - stores daily PPE verification from miners
+		`CREATE TABLE IF NOT EXISTS ppe_stats (
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) REFERENCES users(user_id) ON DELETE CASCADE,
+			miner_name VARCHAR(255),
+			date DATE NOT NULL DEFAULT CURRENT_DATE,
+			safety_helmet VARCHAR(10) DEFAULT 'no',
+			protective_gloves VARCHAR(10) DEFAULT 'no',
+			safety_shoes VARCHAR(10) DEFAULT 'no',
+			high_visibility_vest VARCHAR(10) DEFAULT 'no',
+			safety_goggles VARCHAR(10) DEFAULT 'no',
+			respirator VARCHAR(10) DEFAULT 'no',
+			ear_protection VARCHAR(10) DEFAULT 'no',
+			face_shield VARCHAR(10) DEFAULT 'no',
+			safety_harness VARCHAR(10) DEFAULT 'no',
+			knee_pads VARCHAR(10) DEFAULT 'no',
+			manual_checklist JSONB DEFAULT '{}',
+			ai_verification JSONB DEFAULT '{}',
+			photo_captured BOOLEAN DEFAULT false,
+			completion_percentage FLOAT DEFAULT 0,
+			items_detected INTEGER DEFAULT 0,
+			total_items INTEGER DEFAULT 10,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user_id, date)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ppe_stats_user ON ppe_stats(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_ppe_stats_date ON ppe_stats(date)`,
+		`CREATE INDEX IF NOT EXISTS idx_ppe_stats_user_date ON ppe_stats(user_id, date)`,
 		// Add columns if they don't exist (for existing databases)
 		`DO $$ BEGIN
 			ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;

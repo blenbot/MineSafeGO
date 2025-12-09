@@ -575,3 +575,292 @@ func GetSupervisorMiners(w http.ResponseWriter, r *http.Request) {
 		"miners": miners,
 	})
 }
+
+// ==================== PPE STATISTICS ====================
+
+// PPEStatRequest represents the request body for submitting PPE statistics
+type PPEStatRequest struct {
+	MinerID              string            `json:"miner_id"`
+	MinerName            string            `json:"miner_name"`
+	Timestamp            string            `json:"timestamp"`
+	ManualChecklist      map[string]bool   `json:"manual_checklist"`
+	ChecklistItems       []ChecklistItem   `json:"checklist_items"`
+	AIVerification       map[string]string `json:"ai_verification"` // yes/no values
+	PhotoCaptured        bool              `json:"photo_captured"`
+	CompletionPercentage float64           `json:"completion_percentage"`
+	ItemsDetected        int               `json:"items_detected"`
+	TotalItems           int               `json:"total_items"`
+}
+
+// ChecklistItem represents a single checklist item
+type ChecklistItem struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Checked bool   `json:"checked"`
+}
+
+// PPEStat represents a PPE stat record
+type PPEStat struct {
+	ID                   int               `json:"id"`
+	UserID               string            `json:"user_id"`
+	MinerName            string            `json:"miner_name"`
+	Date                 string            `json:"date"`
+	SafetyHelmet         string            `json:"safety_helmet"`
+	ProtectiveGloves     string            `json:"protective_gloves"`
+	SafetyShoes          string            `json:"safety_shoes"`
+	HighVisibilityVest   string            `json:"high_visibility_vest"`
+	SafetyGoggles        string            `json:"safety_goggles"`
+	Respirator           string            `json:"respirator"`
+	EarProtection        string            `json:"ear_protection"`
+	FaceShield           string            `json:"face_shield"`
+	SafetyHarness        string            `json:"safety_harness"`
+	KneePads             string            `json:"knee_pads"`
+	ManualChecklist      map[string]bool   `json:"manual_checklist"`
+	AIVerification       map[string]string `json:"ai_verification"`
+	PhotoCaptured        bool              `json:"photo_captured"`
+	CompletionPercentage float64           `json:"completion_percentage"`
+	ItemsDetected        int               `json:"items_detected"`
+	TotalItems           int               `json:"total_items"`
+	CreatedAt            time.Time         `json:"created_at"`
+}
+
+// SubmitPPEStat - Submit PPE verification data from miner app
+// POST /api/ppestat
+func SubmitPPEStat(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req PPEStatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	// Use authenticated user ID if not provided
+	if req.MinerID == "" {
+		req.MinerID = userID
+	}
+
+	// Get miner name if not provided
+	if req.MinerName == "" {
+		database.DB.QueryRow("SELECT name FROM users WHERE user_id = $1", userID).Scan(&req.MinerName)
+	}
+
+	// Extract AI verification values (default to "no" if not provided)
+	getAIValue := func(key string) string {
+		if req.AIVerification != nil {
+			if val, ok := req.AIVerification[key]; ok {
+				return val
+			}
+		}
+		return "no"
+	}
+
+	// Convert manual checklist and AI verification to JSON
+	manualChecklistJSON, _ := json.Marshal(req.ManualChecklist)
+	aiVerificationJSON, _ := json.Marshal(req.AIVerification)
+
+	today := time.Now().Format("2006-01-02")
+
+	// Upsert - insert or update if exists for same user and date
+	var statID int
+	err := database.DB.QueryRow(`
+		INSERT INTO ppe_stats (
+			user_id, miner_name, date,
+			safety_helmet, protective_gloves, safety_shoes, high_visibility_vest,
+			safety_goggles, respirator, ear_protection, face_shield,
+			safety_harness, knee_pads,
+			manual_checklist, ai_verification, photo_captured,
+			completion_percentage, items_detected, total_items, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+		ON CONFLICT (user_id, date) DO UPDATE SET
+			miner_name = EXCLUDED.miner_name,
+			safety_helmet = EXCLUDED.safety_helmet,
+			protective_gloves = EXCLUDED.protective_gloves,
+			safety_shoes = EXCLUDED.safety_shoes,
+			high_visibility_vest = EXCLUDED.high_visibility_vest,
+			safety_goggles = EXCLUDED.safety_goggles,
+			respirator = EXCLUDED.respirator,
+			ear_protection = EXCLUDED.ear_protection,
+			face_shield = EXCLUDED.face_shield,
+			safety_harness = EXCLUDED.safety_harness,
+			knee_pads = EXCLUDED.knee_pads,
+			manual_checklist = EXCLUDED.manual_checklist,
+			ai_verification = EXCLUDED.ai_verification,
+			photo_captured = EXCLUDED.photo_captured,
+			completion_percentage = EXCLUDED.completion_percentage,
+			items_detected = EXCLUDED.items_detected,
+			total_items = EXCLUDED.total_items,
+			created_at = NOW()
+		RETURNING id
+	`,
+		userID, req.MinerName, today,
+		getAIValue("safety_helmet"), getAIValue("protective_gloves"), getAIValue("safety_shoes"), getAIValue("high_visibility_vest"),
+		getAIValue("safety_goggles"), getAIValue("respirator"), getAIValue("ear_protection"), getAIValue("face_shield"),
+		getAIValue("safety_harness"), getAIValue("knee_pads"),
+		manualChecklistJSON, aiVerificationJSON, req.PhotoCaptured,
+		req.CompletionPercentage, req.ItemsDetected, req.TotalItems,
+	).Scan(&statID)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error saving PPE stats: "+err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"success": true,
+		"message": "PPE verification submitted successfully",
+		"stat_id": statID,
+		"date":    today,
+	})
+}
+
+// GetPPEStats - Get PPE statistics for supervisor's miners
+// GET /api/supervisor/ppestats?date=2025-01-01&miner_id=MIN-xxx
+func GetPPEStats(w http.ResponseWriter, r *http.Request) {
+	supervisorID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	// Query parameters
+	dateFilter := r.URL.Query().Get("date")
+	minerIDFilter := r.URL.Query().Get("miner_id")
+
+	query := `
+		SELECT ps.id, ps.user_id, ps.miner_name, ps.date,
+			   ps.safety_helmet, ps.protective_gloves, ps.safety_shoes, ps.high_visibility_vest,
+			   ps.safety_goggles, ps.respirator, ps.ear_protection, ps.face_shield,
+			   ps.safety_harness, ps.knee_pads,
+			   ps.manual_checklist, ps.ai_verification, ps.photo_captured,
+			   ps.completion_percentage, ps.items_detected, ps.total_items, ps.created_at
+		FROM ppe_stats ps
+		JOIN users u ON ps.user_id = u.user_id
+		WHERE u.supervisor_id = $1
+	`
+	args := []interface{}{supervisorID}
+	argCount := 2
+
+	if dateFilter != "" {
+		query += fmt.Sprintf(" AND ps.date = $%d", argCount)
+		args = append(args, dateFilter)
+		argCount++
+	}
+
+	if minerIDFilter != "" {
+		query += fmt.Sprintf(" AND ps.user_id = $%d", argCount)
+		args = append(args, minerIDFilter)
+		argCount++
+	}
+
+	query += " ORDER BY ps.date DESC, ps.created_at DESC"
+
+	rows, err := database.DB.Query(query, args...)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	stats := []PPEStat{}
+	for rows.Next() {
+		var stat PPEStat
+		var manualChecklistJSON, aiVerificationJSON []byte
+		var date time.Time
+
+		err := rows.Scan(
+			&stat.ID, &stat.UserID, &stat.MinerName, &date,
+			&stat.SafetyHelmet, &stat.ProtectiveGloves, &stat.SafetyShoes, &stat.HighVisibilityVest,
+			&stat.SafetyGoggles, &stat.Respirator, &stat.EarProtection, &stat.FaceShield,
+			&stat.SafetyHarness, &stat.KneePads,
+			&manualChecklistJSON, &aiVerificationJSON, &stat.PhotoCaptured,
+			&stat.CompletionPercentage, &stat.ItemsDetected, &stat.TotalItems, &stat.CreatedAt,
+		)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error scanning data: "+err.Error())
+			return
+		}
+
+		stat.Date = date.Format("2006-01-02")
+		json.Unmarshal(manualChecklistJSON, &stat.ManualChecklist)
+		json.Unmarshal(aiVerificationJSON, &stat.AIVerification)
+
+		stats = append(stats, stat)
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"stats": stats,
+		"count": len(stats),
+	})
+}
+
+// GetMyPPEStats - Get current user's PPE statistics history
+// GET /api/ppestat/me?limit=30
+func GetMyPPEStats(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit := 30
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	rows, err := database.DB.Query(`
+		SELECT id, user_id, miner_name, date,
+			   safety_helmet, protective_gloves, safety_shoes, high_visibility_vest,
+			   safety_goggles, respirator, ear_protection, face_shield,
+			   safety_harness, knee_pads,
+			   manual_checklist, ai_verification, photo_captured,
+			   completion_percentage, items_detected, total_items, created_at
+		FROM ppe_stats
+		WHERE user_id = $1
+		ORDER BY date DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Database error: "+err.Error())
+		return
+	}
+	defer rows.Close()
+
+	stats := []PPEStat{}
+	for rows.Next() {
+		var stat PPEStat
+		var manualChecklistJSON, aiVerificationJSON []byte
+		var date time.Time
+
+		err := rows.Scan(
+			&stat.ID, &stat.UserID, &stat.MinerName, &date,
+			&stat.SafetyHelmet, &stat.ProtectiveGloves, &stat.SafetyShoes, &stat.HighVisibilityVest,
+			&stat.SafetyGoggles, &stat.Respirator, &stat.EarProtection, &stat.FaceShield,
+			&stat.SafetyHarness, &stat.KneePads,
+			&manualChecklistJSON, &aiVerificationJSON, &stat.PhotoCaptured,
+			&stat.CompletionPercentage, &stat.ItemsDetected, &stat.TotalItems, &stat.CreatedAt,
+		)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error scanning data: "+err.Error())
+			return
+		}
+
+		stat.Date = date.Format("2006-01-02")
+		json.Unmarshal(manualChecklistJSON, &stat.ManualChecklist)
+		json.Unmarshal(aiVerificationJSON, &stat.AIVerification)
+
+		stats = append(stats, stat)
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"stats": stats,
+		"count": len(stats),
+	})
+}

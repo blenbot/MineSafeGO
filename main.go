@@ -103,6 +103,12 @@ func main() {
 	// User routes
 	api.HandleFunc("/me", handlers.GetMe).Methods("GET")
 
+	// ==================== PPE STATISTICS (Miner) ====================
+	// POST /api/ppestat - Submit PPE verification from app
+	api.HandleFunc("/ppestat", handlers.SubmitPPEStat).Methods("POST")
+	// GET /api/ppestat/me - Get my PPE history
+	api.HandleFunc("/ppestat/me", handlers.GetMyPPEStats).Methods("GET")
+
 	// Miner management routes (supervisor only)
 	minerRoutes := api.PathPrefix("/miners").Subrouter()
 	minerRoutes.Use(middleware.SupervisorOnly)
@@ -128,6 +134,8 @@ func main() {
 	// Emergency report management
 	supervisorRoutes.HandleFunc("/emergencies/{id}/download", handlers.DownloadEmergencyReport).Methods("GET")
 	supervisorRoutes.HandleFunc("/emergencies/{id}/forward", handlers.ForwardEmergencyReport).Methods("POST")
+	// PPE Statistics (Supervisor view)
+	supervisorRoutes.HandleFunc("/ppestats", handlers.GetPPEStats).Methods("GET")
 
 	// Video module routes
 	api.HandleFunc("/modules", handlers.GetVideoModules).Methods("GET")
