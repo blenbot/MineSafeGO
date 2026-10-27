@@ -47,7 +47,7 @@ func main() {
 	router.HandleFunc("/api/auth/register-admin", handlers.RegisterAdmin).Methods("POST")
 	router.HandleFunc("/api/app/miner/login", handlers.MinerAppLogin).Methods("POST")
 
-	// ==================== ADMIN AUTH (Public) ====================
+	// ==================== ADMIN AUTH 1 (Public) ====================
 	router.HandleFunc("/api/admin/signup", handlers.AdminSignup).Methods("POST")
 	router.HandleFunc("/api/admin/login", handlers.AdminLogin).Methods("POST")
 
